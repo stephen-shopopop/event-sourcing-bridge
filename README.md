@@ -30,7 +30,7 @@ Instead of directly coupling your application to a specific messaging system (li
 | **Kafka**    | Event Streaming Platform   | High-throughput event logs, real-time data |
 | **SQLite**   | Local Job Queue (Bonus)    | Lightweight task scheduling, development   |
 
-📖 **[See detailed backend comparison guide →](./BACKEND_COMPARISON.md)**
+📖 **[See detailed backend comparison guide →](./BACKEND_COMPARISON.md)** | **[Version française →](./BACKEND_COMPARISON.fr.md)**
 
 ## ✨ Key Features
 
