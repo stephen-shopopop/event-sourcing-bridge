@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@stephen-shopopop/<your-package-name>",
+  "description": "<your-package-name> implementation for nodejs",
+  "version": "0.3.0",
+  "keywords": [
+    ""
+  ],
+  "author": "Stephen Deletang <me@stephendeletang.com>",
+  "contributors": [
+    {
+      "name": "Stephen Deletang",
+      "email": "stephen-shopopop@shopopop.com"
+    }
+  ],
+  "license": "ISC",
+  "homepage": "https://github.com/stephen-shopopop/<your-package-name>#readme",
+  "bugs": {
+    "url": "https://github.com/stephen-shopopop/<your-package-name>/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stephen-shopopop/<your-package-name>.git"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    "require": {
+      "types": "./dist/index.d.cts",
+      "default": "./dist/index.cjs"
+    },
+    "import": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "tsup": {
+    "entry": [
+      "src/index.ts"
+    ],
+    "splitting": false,
+    "sourcemap": false,
+    "clean": true,
+    "platform": "node",
+    "shims": true,
+    "format": [
+      "cjs",
+      "esm"
+    ],
+    "dts": true,
+    "minify": false
+  },
+  "scripts": {
+    "test": "tsc --pretty --noEmit && npx tsx ./bin/test-runner.js **/*.test.ts -C",
+    "coverage": "c8 --reporter=lcov --reporter=text --reporter=html npm run test",
+    "build": "tsup-node",
+    "lint": "biome lint .",
+    "format": "biome lint --write . && biome format --write .",
+    "check": "tsc --pretty --noEmit && npm run lint",
+    "clean": "rm -rf ./dist",
+    "maintenance": "npm run clean & rm -rf ./node_modules && npm cache clean --force",
+    "deps:update": "npx taze",
+    "deps:unused": "npx knip",
+    "biome:migrate": "npm install --save-dev --save-exact @biomejs/biome@latest && npx @biomejs/biome migrate --write",
+    "tarball:check": "npm pack --dry-run",
+    "publish:dry-run": "npm publish --dry-run",
+    "prepack": "npm run build",
+    "docs": "npx typedoc --out docs src"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.5",
+    "@reporters/github": "^1.11.0",
+    "@types/node": "^24.6.2",
+    "c8": "^10.1.3",
+    "simple-git-hooks": "^2.13.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npm run check"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.17.0"
+  }
+}
