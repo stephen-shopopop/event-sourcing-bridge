@@ -1,30 +1,69 @@
 # Project Overview
 
-Professional Node.js package template with TypeScript, modern tooling, and best practices.
+> **event-sourcing-bridge** is a unified, high-performance abstraction layer for Event Sourcing and Job Queue systems in Node.js
+
+This library provides a consistent, strongly-typed interface to work with multiple event sourcing and message queue systems, eliminating vendor lock-in and simplifying backend migration.
+
+## What is event-sourcing-bridge?
+
+Instead of directly coupling your application to a specific messaging system (like RabbitMQ or Kafka), this bridge provides:
+
+- **Unified API**: Write code once, use with any supported backend
+- **Abstraction Layer**: Switch between pg-boss, RabbitMQ, ZeroMQ, or Kafka without changing business logic
+- **Type Safety**: Full TypeScript support with strict typing
+- **Flexibility**: Mix and match different systems for different use cases
+
+### Supported Systems
+
+1. **pg-boss** - Job queue using PostgreSQL (ACID guarantees, simple setup)
+2. **RabbitMQ** - AMQP message broker (enterprise messaging, complex routing)
+3. **ZeroMQ** - High-performance messaging (ultra-low latency, distributed systems)
+4. **Kafka** - Event streaming platform (high-throughput event logs, real-time data)
+5. **SQLite** - Local job queue (lightweight task scheduling, development/testing)
 
 ## Project Type
 
-This is a **package template** designed for creating publishable Node.js libraries with dual package support (ESM + CommonJS).
+This is an **abstraction library for event sourcing and job queue systems**.
+It is built with TypeScript and supports both ESM and CommonJS module formats.
+
+### Key Use Cases
+
+- Background job processing
+- Event-driven microservices
+- Task scheduling and cron jobs
+- Message queue abstraction
+- Multi-backend queue strategies
+- Event streaming and CQRS patterns
 
 ## Folder Structure
 
-- `/src`: Contains the TypeScript source code for the package
-- `/test`: Contains test files and test setup/teardown scripts
-- `/bin`: Contains CLI scripts and custom test runner
+- `/src`: TypeScript source code for the package
+  - Core abstractions and interfaces
+  - Backend implementations (pg-boss, RabbitMQ, ZeroMQ, Kafka, SQLite)
+  - Queue clients, event bridges, and schedulers
+- `/test`: Test files and test setup/teardown scripts
+  - Unit tests for each backend
+  - Integration tests
+  - Test fixtures and helpers
+- `/bin`: CLI scripts and custom test runner
 - `/dist`: Build output directory (generated, gitignored)
 - `/docs`: Generated TypeDoc documentation (gitignored)
 - `/coverage`: Code coverage reports (generated, gitignored)
 - `/.github`: GitHub configuration, templates, and workflows
+- `/BACKEND_COMPARISON.md`: Detailed comparison of supported backends
+- `/GETTING_STARTED.md`: Quick start guide for new users
 
 ## Libraries and Frameworks
 
 ### Core Dependencies
+
 - **Node.js** >= 20.17.0
 - **TypeScript** 5.9+ for type-safe development
 - **tsup** for fast bundling and dual package output
 - **tsx** for running TypeScript files directly
 
 ### Development Tools
+
 - **node:test** - Native Node.js test runner
 - **c8** - Code coverage reporting
 - **Biome** - Fast linting and formatting
@@ -88,6 +127,7 @@ package-template/
 ### Package Exports
 
 The package supports dual module formats through package.json exports:
+
 - **ESM**: `import` with `.js` and `.d.ts` files
 - **CommonJS**: `require` with `.cjs` and `.d.cts` files
 
@@ -132,29 +172,35 @@ The package supports dual module formats through package.json exports:
 The custom test runner (`bin/test-runner.js`) supports the following options:
 
 #### Execution Options
+
 - `--concurrency` or `-c` - Number of concurrent tests (default: CPUs - 1)
 - `--timeout` or `-t` - Test timeout in milliseconds (default: 30000)
 - `--only` or `-o` - Only run tests marked with `only` (default: false)
 - `--forceExit` or `-F` - Force exit after tests complete (default: false)
 
 #### Coverage Options
+
 - `--coverage` or `-C` - Enable code coverage (default: false)
 - `--lines` - Coverage lines threshold (default: 80)
 - `--functions` - Coverage functions threshold (default: 80)
 - `--branches` - Coverage branches threshold (default: 80)
 
 #### Watch & Development
+
 - `--watch` or `-w` - Re-run tests on file changes (default: false)
 - `--expose-gc` - Expose gc() function to tests (default: false)
 
 #### Test Selection
+
 - `--pattern` or `-p` - Test file glob pattern (default: `*.test.{js|ts}`)
 - `--name` - Filter tests by name pattern (e.g., `--name="#myTag"`)
 
 #### Reporting
+
 - `--reporter` or `-r` - Set reporter (spec, tap, dot, junit, github)
 
 #### Setup & Teardown
+
 - `--rootDir` - Root directory for setup and teardown scripts
 
 ### Examples
@@ -187,6 +233,7 @@ npx tsx ./bin/test-runner.js **/*.test.ts -r github
 ## Git Hooks
 
 Pre-commit hook runs automatically:
+
 - TypeScript type checking (`tsc --noEmit`)
 - Biome linting
 

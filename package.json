@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@stephen-shopopop/<your-package-name>",
-  "description": "<your-package-name> implementation for nodejs",
-  "version": "0.3.0",
+  "name": "@stephen-shopopop/event-sourcing-bridge",
+  "description": "Event sourcing bridge for nodejs",
+  "version": "0.1.0",
   "keywords": [
     ""
   ],
@@ -14,13 +14,13 @@
     }
   ],
   "license": "ISC",
-  "homepage": "https://github.com/stephen-shopopop/<your-package-name>#readme",
+  "homepage": "https://github.com/stephen-shopopop/event-sourcing-bridge#readme",
   "bugs": {
-    "url": "https://github.com/stephen-shopopop/<your-package-name>/issues"
+    "url": "https://github.com/stephen-shopopop/event-sourcing-bridge/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/stephen-shopopop/<your-package-name>.git"
+    "url": "git+https://github.com/stephen-shopopop/event-sourcing-bridge.git"
   },
   "type": "module",
   "main": "./dist/index.cjs",
