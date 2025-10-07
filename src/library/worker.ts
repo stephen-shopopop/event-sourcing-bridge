@@ -600,6 +600,7 @@ export class Worker {
       }
     }
 
+    this.#stopping = false;
     this.state = WORKER_STATES.stopped;
   }
 
@@ -652,11 +653,8 @@ export class Worker {
    * ```
    */
   dispose(): void {
-    // Stop the worker if it's still running
-    if (this.state === WORKER_STATES.active || this.state === WORKER_STATES.created) {
-      this.#stopping = true;
-      this.state = WORKER_STATES.stopping;
-    }
+    this.#stopping = true;
+    this.state = WORKER_STATES.stopping;
 
     // Explicit cleanup of AbortController
     if (this.#cancelTask) {
