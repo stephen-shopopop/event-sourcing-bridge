@@ -1,97 +1,8 @@
 import { setTimeout } from 'node:timers/promises';
 import { randomUUID, type UUID } from 'node:crypto';
-
-/**
- * Configuration options for creating a Worker instance.
- *
- * @example
- * ```typescript
- * const options: WorkerOptions = {
- *   name: 'data-fetcher',
- *   interval: 5000,
- *   fetch: async ({ signal }) => {
- *     const response = await fetch('https://api.example.com/data', { signal });
- *     await processData(await response.json());
- *   },
- *   errorCallback: (err) => logger.error(err),
- *   fetchProcessingTimeout: 30000
- * };
- * ```
- */
-type WorkerOptions = {
-  /**
-   * Optional callback to handle errors thrown by the fetch function.
-   * If not provided, errors are logged to the console.
-   *
-   * @param err - The error caught during fetch execution
-   *
-   * @default console.error
-   *
-   * @example
-   * ```typescript
-   * errorCallback: (err) => {
-   *   logger.error('Worker failed:', err);
-   *   metrics.increment('worker.errors');
-   * }
-   * ```
-   */
-  errorCallback?: (err: unknown) => void;
-  /**
-   * Interval in milliseconds between fetch calls.
-   * The interval is measured from the start of one fetch to the start of the next.
-   * If a fetch takes longer than the interval, the next fetch starts immediately.
-   *
-   * @minimum 1000
-   * @default 1000
-   *
-   * @example
-   * ```typescript
-   * interval: 5000 // Fetch every 5 seconds
-   * ```
-   */
-  interval?: number;
-  /**
-   * Fetch function to be called at each interval. Must return a Promise.
-   * The function receives an AbortSignal that should be used to cancel the operation
-   * when the worker is stopped or when the fetchProcessingTimeout is reached.
-   *
-   * @param options - Object containing the abort signal
-   * @param options.signal - AbortSignal to handle cancellation
-   * @returns Promise that resolves when the fetch operation is complete
-   *
-   * @example
-   * ```typescript
-   * fetch: async ({ signal }) => {
-   *   const data = await fetchData({ signal });
-   *   await processData(data);
-   * }
-   * ```
-   */
-  fetch: ({ signal }: { signal: AbortSignal }) => Promise<void>;
-  /**
-   * Name of the worker for identification purposes.
-   * This name is included in error messages and can be used for logging and debugging.
-   *
-   * @example
-   * ```typescript
-   * name: 'email-queue-processor'
-   * ```
-   */
-  name: string;
-  /**
-   * Optional timeout for the fetch function in milliseconds.
-   * If the fetch function does not complete within this time, it will be aborted
-   * using the AbortSignal passed to the fetch function.
-   *
-   * @default Infinity (no timeout)
-   *
-   * @example
-   * ```typescript
-   * fetchProcessingTimeout: 30000 // Abort after 30 seconds
-   * ```
-   */
-  fetchProcessingTimeout?: number;
-};
+import type { WorkerOptions } from './definitions.js';
+import { DEFAULT_INTERVAL } from './constants.js';
+import { channels } from './channels.js';
 
 /**
  * Possible states of a Worker instance during its lifecycle.
@@ -120,58 +31,28 @@ const WORKER_STATES = {
   active: 'active',
   stopping: 'stopping',
   stopped: 'stopped'
-};
+} as const;
 
 /**
  * Type representing possible worker states.
  */
-type WorkerState = typeof WORKER_STATES[keyof typeof WORKER_STATES];
+type WorkerState = (typeof WORKER_STATES)[keyof typeof WORKER_STATES];
 
 /**
- * A Worker is a recurring task executor that runs a fetch function at specified intervals.
- * It provides graceful start/stop mechanisms and handles errors through callbacks.
+ * Worker class to perform recurring tasks at specified intervals.
  *
- * The worker ensures that fetch operations are properly cancelled when stopping and
- * respects timeout constraints for long-running operations.
+ * The Worker class allows you to define a task (fetch function) that will be executed
+ * at regular intervals. It supports starting and stopping the task gracefully, with
+ * proper handling of ongoing operations using AbortController.
  *
- * @example
- * Basic usage:
- * ```typescript
- * const worker = new Worker({
- *   name: 'job-processor',
- *   interval: 5000,
- *   fetch: async ({ signal }) => {
- *     const jobs = await fetchJobs({ signal });
- *     await processJobs(jobs);
- *   }
- * });
+ * Key features:
+ * - Configurable interval (minimum 1000ms)
+ * - Optional timeout for fetch operations
+ * - Error handling via callback
+ * - Unique identifier for each worker instance
+ * - State management (created, active, stopping, stopped)
  *
- * // Start the worker
- * worker.start();
- *
- * // Later, stop the worker gracefully
- * worker.stop();
- * ```
- *
- * @example
- * With error handling and timeout:
- * ```typescript
- * const worker = new Worker({
- *   name: 'api-poller',
- *   interval: 10000,
- *   fetchProcessingTimeout: 8000,
- *   fetch: async ({ signal }) => {
- *     const data = await pollAPI({ signal });
- *     await saveData(data);
- *   },
- *   errorCallback: (err) => {
- *     logger.error('Worker error:', err);
- *     metrics.increment('worker.errors');
- *   }
- * });
- *
- * await worker.start();
- * ```
+ * @see {@link WorkerOptions} for configuration options.
  */
 export class Worker {
   /**
@@ -215,9 +96,8 @@ export class Worker {
    * via the AbortSignal passed to the fetch function.
    *
    * @private
-   * @default Number.POSITIVE_INFINITY (no timeout)
    */
-  readonly #fetchProcessingTimeout = Number.POSITIVE_INFINITY;
+  readonly #fetchProcessingTimeout: number | undefined;
 
   /**
    * Interval in milliseconds between fetch calls.
@@ -227,7 +107,7 @@ export class Worker {
    * @minimum 1000
    * @default 1000
    */
-  readonly #interval: number = 1_000;
+  readonly #interval: number = DEFAULT_INTERVAL;
 
   /**
    * Unique identifier (UUID v4) for this worker instance.
@@ -316,7 +196,7 @@ export class Worker {
           throw new TypeError('Worker options.interval must be a non-negative integer');
         }
 
-        this.#interval = Math.max(1_000, options.interval);
+        this.#interval = Math.max(DEFAULT_INTERVAL, options.interval);
       }
 
       if (options.fetchProcessingTimeout) {
@@ -350,52 +230,17 @@ export class Worker {
   }
 
   /**
-   * Starts the worker and begins executing the fetch function at the specified interval.
+   * Internal method that runs the fetch loop.
+   * This method is called by start() and continues to execute the fetch function
+   * at the configured interval until stop() is called.
    *
-   * This method runs continuously until stop() is called. Each iteration:
-   * 1. Executes the fetch function with an AbortSignal
-   * 2. Applies the fetchProcessingTimeout if configured
-   * 3. Catches and handles any errors via errorCallback
-   * 4. Waits for the remaining interval time before the next iteration
+   * It handles timing, cancellation, and error reporting.
    *
-   * The worker transitions to 'active' state immediately upon starting.
-   * When stop() is called, it transitions to 'stopping' then 'stopped'.
-   *
-   * @returns {Promise<void>} A promise that resolves when the worker has completely stopped.
-   *                          This promise will not resolve until stop() is called.
-   *
-   * @example
-   * Basic usage:
-   * ```typescript
-   * const worker = new Worker(options);
-   *
-   * // Start the worker (runs indefinitely)
-   * const stopPromise = worker.start();
-   *
-   * // Later, stop the worker
-   * worker.stop();
-   *
-   * // Wait for graceful shutdown
-   * await stopPromise;
-   * ```
-   *
-   * @example
-   * With error handling:
-   * ```typescript
-   * const worker = new Worker({
-   *   name: 'processor',
-   *   interval: 5000,
-   *   fetch: async ({ signal }) => {
-   *     // This error will be caught and passed to errorCallback
-   *     throw new Error('Processing failed');
-   *   },
-   *   errorCallback: (err) => console.error('Error:', err)
-   * });
-   *
-   * await worker.start();
-   * ```
+   * @private
+   * @async
+   * @returns {Promise<void>} Resolves when the worker has fully stopped.
    */
-  async start(): Promise<void> {
+  async #startWorker(): Promise<void> {
     this.state = WORKER_STATES.active;
 
     while (this.#stopping === false) {
@@ -404,7 +249,12 @@ export class Worker {
 
       const start = performance.now();
 
-      const timeout = async (timeoutInMs: number) => {
+      const timeout = async (timeoutInMs?: number): Promise<void> => {
+        if (timeoutInMs === undefined) {
+          // Return a promise that never resolves, so the race is won by fetch()
+          return new Promise(() => {});
+        }
+
         try {
           await setTimeout(timeoutInMs, undefined, { signal: cancelTimeout.signal, ref: false });
           this.#cancelTask?.abort();
@@ -418,10 +268,26 @@ export class Worker {
           timeout(this.#fetchProcessingTimeout),
           this.options.fetch({ signal: this.#cancelTask.signal })
         ]);
+
+        channels.worker.publish({
+          operation: 'worker:fetch',
+          params: { id: this.id, name: this.options.name },
+          duration: performance.now() - start,
+          success: true
+        });
       } catch (err) {
+        channels.worker.publish({
+          operation: 'worker:fetch',
+          params: { id: this.id, name: this.options.name },
+          duration: performance.now() - start,
+          success: false,
+          error: Error.isError(err) ? err.message : String(err)
+        });
+
         if (Error.isError(err)) {
           err.message = `${err.message} (WorkName: ${this.options.name}, Worker: ${this.id})`;
         }
+
         this.#errorCallback(err);
       } finally {
         cancelTimeout.abort();
@@ -430,10 +296,14 @@ export class Worker {
       const elapsed = performance.now() - start;
 
       if (!this.#stopping && this.#interval - elapsed > 100) {
-        await setTimeout(this.#interval - elapsed, undefined, {
-          signal: this.#cancelTask.signal,
-          ref: false
-        });
+        try {
+          await setTimeout(this.#interval - elapsed, undefined, {
+            signal: this.#cancelTask.signal,
+            ref: false
+          });
+        } catch {
+          // AbortError is expected when stopping the worker
+        }
       }
     }
 
@@ -441,50 +311,37 @@ export class Worker {
   }
 
   /**
-   * Stops the worker gracefully.
-   *
-   * This method signals the worker to stop by setting the internal stopping flag
-   * and aborting the current fetch operation and interval timer. The worker will:
-   * 1. Transition to 'stopping' state immediately
-   * 2. Abort any ongoing fetch operation via AbortSignal
-   * 3. Cancel the interval timer between fetches
-   * 4. Transition to 'stopped' state once the current iteration completes
-   *
-   * The method returns immediately, but the worker may take time to fully stop
-   * if a fetch operation is in progress. Wait for the start() promise to resolve
-   * to ensure the worker has completely stopped.
+   *  Starts the worker if it is not already active.
+   * If the worker is already running, this method has no effect.
    *
    * @example
-   * Graceful shutdown:
    * ```typescript
    * const worker = new Worker(options);
-   * const startPromise = worker.start();
-   *
-   * // Later, initiate shutdown
-   * worker.stop();
-   *
-   * // Wait for complete shutdown
-   * await startPromise;
-   * console.log(worker.state); // 'stopped'
+   * worker.start(); // Starts the worker
+   * worker.start(); // No effect, worker is already running
    * ```
    *
+   * @see {@link stop} to stop the worker gracefully.
+   */
+  start(): void {
+    if (this.state !== WORKER_STATES.active) {
+      void this.#startWorker().catch((err) => {
+        this.#errorCallback(err);
+      });
+    }
+  }
+
+  /**
+   * Stops the worker gracefully.
+   * This method sets the stopping flag and aborts any ongoing fetch operation.
+   * The worker will transition to 'stopping' state and eventually to 'stopped' state.
+   *
    * @example
-   * With timeout:
    * ```typescript
-   * const worker = new Worker({
-   *   name: 'task-worker',
-   *   interval: 1000,
-   *   fetchProcessingTimeout: 5000, // Fetch will be aborted after 5s
-   *   fetch: async ({ signal }) => {
-   *     await longRunningTask({ signal });
-   *   }
-   * });
-   *
-   * const startPromise = worker.start();
-   *
-   * // Stop the worker - long-running fetch will be aborted
+   * const worker = new Worker(options);
+   * worker.start();
+   * // Later...
    * worker.stop();
-   * await startPromise;
    * ```
    */
   stop(): void {
