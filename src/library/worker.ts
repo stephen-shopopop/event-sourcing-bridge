@@ -35,10 +35,10 @@ import { channels } from './channels.js';
  *          │                            │
  *          ▼                            │
  *   ┌─────────────┐                     │
- *   │   active    │                     │  Lifecycle ends
- *   │  (running)  │                     │  Worker cannot
- *   └──────┬──────┘                     │  be restarted
- *          │                            │
+ *   │   active    │                     │  Worker is reusable:
+ *   │  (running)  │                     │  Can restart after
+ *   └──────┬──────┘                     │  reaching 'stopped'
+ *          │                            │  (#stopping = false)
  *          │                            │
  *   ┌──────▼────────────────────────┐   │
  *   │    FETCH LOOP (while loop)    │   │
@@ -120,7 +120,19 @@ import { channels } from './channels.js';
  *     │   stopped   │───────────────────┘
  *     │   (final)   │
  *     │ (disposed)  │
- *     └─────────────┘
+ *     │             │
+ *     │ Can restart:│────┐
+ *     │ start() OK  │    │ start() again
+ *     └─────────────┘    │ creates new cycle
+ *                        │
+ *                        └──────┐
+ *                               │
+ *                               ▼
+ *                        ┌─────────────┐
+ *                        │   active    │
+ *                        │  (running)  │
+ *                        │  New cycle! │
+ *                        └─────────────┘
  *
  *
  * ┌─────────────────────────────────────────────────────────────────────────┐
