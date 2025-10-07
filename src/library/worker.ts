@@ -95,9 +95,10 @@ import { channels } from './channels.js';
  *                        │              │
  *            ┌───────────┘              │
  *            │  Loop continues          │
- *            │  until stop()            │
+ *            │  until dispose()         │
  *            │                          │
- *            │  stop() or dispose()     │
+ *            │  dispose()               │
+ *            │  (or stop, deprecated)   │
  *            │                          │
  *            ▼                          │
  *     ┌─────────────┐                   │
@@ -109,23 +110,16 @@ import { channels } from './channels.js';
  *            │  • Set state = 'stopping'│
  *            │  • Set #stopping = true  │
  *            │  • Abort #cancelTask     │
+ *            │  • Cleanup #cancelTask   │
+ *            │    (set to undefined)    │
  *            │  • Wait for current fetch│
  *            │    to complete           │
- *            │  • Cleanup controllers   │
  *            │                          │
  *            ▼                          │
  *     ┌─────────────┐                   │
  *     │   stopped   │───────────────────┘
  *     │   (final)   │
- *     └──────┬──────┘
- *            │
- *            │  dispose() (optional)
- *            │  for explicit cleanup
- *            ▼
- *     ┌─────────────┐
- *     │   disposed  │
- *     │ (resources  │
- *     │  cleaned)   │
+ *     │ (disposed)  │
  *     └─────────────┘
  *
  *
@@ -133,42 +127,44 @@ import { channels } from './channels.js';
  * │                    RESOURCE CLEANUP (Memory Management)                 │
  * └─────────────────────────────────────────────────────────────────────────┘
  *
- *   Two cleanup strategies available:
+ *   Cleanup strategy (unified):
  *
- *   1. Implicit cleanup (stop()):
- *      ┌──────────────┐
- *      │ worker.stop()│
- *      └──────┬───────┘
- *             │
- *             ▼
- *      ┌──────────────────┐
- *      │ Abort controller │
- *      │ relies on GC     │
- *      └──────────────────┘
+ *   dispose() (recommended):
+ *   ┌─────────────────┐
+ *   │worker.dispose() │
+ *   └────────┬────────┘
+ *            │
+ *            ▼
+ *   ┌────────────────────────────┐
+ *   │ 1. Set #stopping = true    │
+ *   │    state = 'stopping'      │
+ *   └────────┬───────────────────┘
+ *            │
+ *            ▼
+ *   ┌────────────────────────────┐
+ *   │ 2. Abort #cancelTask       │
+ *   └────────┬───────────────────┘
+ *            │
+ *            ▼
+ *   ┌────────────────────────────┐
+ *   │ 3. Set #cancelTask = undef │
+ *   │    (explicit cleanup)      │
+ *   └────────────────────────────┘
  *
- *   2. Explicit cleanup (dispose()):
- *      ┌─────────────────┐
- *      │worker.dispose() │
- *      └────────┬────────┘
- *               │
- *               ▼
- *      ┌────────────────────────────┐
- *      │ 1. Call stop() if active   │
- *      └────────┬───────────────────┘
- *               │
- *               ▼
- *      ┌────────────────────────────┐
- *      │ 2. Abort #cancelTask       │
- *      └────────┬───────────────────┘
- *               │
- *               ▼
- *      ┌────────────────────────────┐
- *      │ 3. Set #cancelTask = undef │
- *      │    (explicit cleanup)      │
- *      └────────────────────────────┘
+ *   stop() (deprecated, alias for dispose()):
+ *   ┌──────────────┐
+ *   │ worker.stop()│
+ *   └──────┬───────┘
+ *          │
+ *          ▼
+ *   ┌──────────────────┐
+ *   │ Calls dispose()  │
+ *   │ (for backward    │
+ *   │  compatibility)  │
+ *   └──────────────────┘
  *
- *   Recommended: Use dispose() for explicit resource management
- *   and preventing potential memory leaks.
+ *   Note: Always use dispose() in new code.
+ *         stop() is maintained for backward compatibility only.
  *
  *
  * ┌─────────────────────────────────────────────────────────────────────────┐
@@ -177,8 +173,8 @@ import { channels } from './channels.js';
  *
  *   ┌──────────────┐
  *   │ User calls   │
- *   │ stop()/      │
  *   │ dispose()    │
+ *   │ (or stop)    │
  *   └──────┬───────┘
  *          │
  *          ▼
@@ -283,8 +279,8 @@ import { channels } from './channels.js';
  *
  * 1. **State Machine**: Unidirectional flow (created → active → stopping → stopped)
  * 2. **No Restart**: Once stopped, a worker cannot be restarted (prevents state confusion)
- * 3. **Graceful Shutdown**: stop() waits for current fetch to complete before stopping
- * 4. **Explicit Cleanup**: dispose() method for deterministic resource cleanup
+ * 3. **Unified Cleanup**: dispose() is the single recommended way to stop and cleanup
+ * 4. **Backward Compatibility**: stop() maintained as deprecated alias for dispose()
  * 5. **Adaptive Timing**: Interval accounts for fetch execution time
  * 6. **Dual Abort Controllers**: Separate controllers for timeout and task cancellation
  * 7. **Observable**: Publishes all executions to diagnostics channel for monitoring
@@ -618,7 +614,7 @@ export class Worker {
    * worker.start(); // No effect, worker is already running
    * ```
    *
-   * @see {@link stop} to stop the worker gracefully.
+   * @see {@link dispose} to stop the worker and clean up resources.
    */
   start(): void {
     if (this.state !== WORKER_STATES.active) {
@@ -629,27 +625,26 @@ export class Worker {
   }
 
   /**
-   * Stops the worker gracefully.
-   * This method sets the stopping flag and aborts any ongoing fetch operation.
-   * The worker will transition to 'stopping' state and eventually to 'stopped' state.
+   * Stops the worker gracefully and cleans up resources.
+   * This is an alias for dispose() for backward compatibility.
    *
-   * Note: For explicit resource cleanup, use dispose() instead.
+   * @deprecated Use dispose() instead for explicit resource cleanup.
+   * This method will be removed in a future major version.
    *
    * @example
    * ```typescript
    * const worker = new Worker(options);
    * worker.start();
    * // Later...
-   * worker.stop();
+   * worker.stop(); // Deprecated - use worker.dispose() instead
    * ```
    *
-   * @see {@link dispose} for explicit resource cleanup
+   * @see {@link dispose} for the recommended method
    */
   stop(): void {
-    this.#stopping = true;
-    this.state = WORKER_STATES.stopping;
-
-    this.#cancelTask?.abort();
+    // stop() is now just an alias for dispose()
+    // This maintains backward compatibility while encouraging best practices
+    this.dispose();
   }
 
   /**
@@ -681,8 +676,9 @@ export class Worker {
    */
   dispose(): void {
     // Stop the worker if it's still running
-    if (this.state === WORKER_STATES.active) {
-      this.stop();
+    if (this.state === WORKER_STATES.active || this.state === WORKER_STATES.created) {
+      this.#stopping = true;
+      this.state = WORKER_STATES.stopping;
     }
 
     // Explicit cleanup of AbortController
