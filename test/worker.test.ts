@@ -907,10 +907,10 @@ describe('Worker', () => {
       worker2.start();
       // Optimized: shorter delays
       await wait(1100); // Both get first call
-      worker1.stop(); // Worker1 stops after ~1 call
+      worker1.dispose(); // Worker1 stops after ~1 call
 
       await wait(1050); // Worker2 gets second call
-      worker2.stop();
+      worker2.dispose();
 
       // Assert
       t.assert.ok(

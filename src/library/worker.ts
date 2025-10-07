@@ -625,29 +625,6 @@ export class Worker {
   }
 
   /**
-   * Stops the worker gracefully and cleans up resources.
-   * This is an alias for dispose() for backward compatibility.
-   *
-   * @deprecated Use dispose() instead for explicit resource cleanup.
-   * This method will be removed in a future major version.
-   *
-   * @example
-   * ```typescript
-   * const worker = new Worker(options);
-   * worker.start();
-   * // Later...
-   * worker.stop(); // Deprecated - use worker.dispose() instead
-   * ```
-   *
-   * @see {@link dispose} for the recommended method
-   */
-  stop(): void {
-    // stop() is now just an alias for dispose()
-    // This maintains backward compatibility while encouraging best practices
-    this.dispose();
-  }
-
-  /**
    * Disposes the worker and explicitly cleans up all resources.
    * This method stops the worker (if running) and cleans up the AbortController.
    *
