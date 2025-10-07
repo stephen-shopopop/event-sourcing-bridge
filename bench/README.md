@@ -39,11 +39,51 @@ new Worker()              4.68 µs/iter   4.00 µs
 
 Quick conversion formula: `ops/sec = 1,000,000 / microseconds`
 
-| Benchmark | Avg Time | Operations/sec |
-|-----------|----------|----------------|
-| Instantiation | ~5 µs | ~200,000 ops/sec |
-| Start/Stop | ~30 µs | ~33,000 ops/sec |
-| Fetch (no-op) | ~50 ms | ~20 ops/sec |
+### Benchmark Results Summary
+
+Complete results from a typical run on 2.7GHz Intel i5:
+
+| Category | Benchmark | Avg Time | Operations/sec |
+|----------|-----------|----------|----------------|
+| **Instantiation** | | | |
+| | new Worker() | ~4 µs | ~250,000 ops/sec |
+| | with custom interval | ~7 µs | ~143,000 ops/sec |
+| | with fetchProcessingTimeout | ~6 µs | ~167,000 ops/sec |
+| | with errorCallback | ~7 µs | ~143,000 ops/sec |
+| **Start/Stop** | | | |
+| | start() | ~34 µs | ~29,000 ops/sec |
+| | dispose() | ~27 µs | ~37,000 ops/sec |
+| | start() → dispose() cycle | ~40 µs | ~25,000 ops/sec |
+| | multiple dispose() (idempotent) | ~28 µs | ~36,000 ops/sec |
+| **Execution** | | | |
+| | 1 iteration @ 1000ms interval | ~51.6 ms | ~19 ops/sec |
+| | fetch with 10ms delay | ~51.5 ms | ~19 ops/sec |
+| | fetch with 50ms delay | ~101 ms | ~10 ops/sec |
+| **Error Handling** | | | |
+| | with custom errorCallback | ~51.7 ms | ~19 ops/sec |
+| | with default errorCallback | ~51.3 ms | ~19 ops/sec |
+| | fetch timeout abort | ~51.2 ms | ~20 ops/sec |
+| **Concurrency** | | | |
+| | 2 concurrent workers | ~51.4 ms | ~19 ops/sec |
+| | 5 concurrent workers | ~51.8 ms | ~19 ops/sec |
+| | 10 concurrent workers | ~52.1 ms | ~19 ops/sec |
+| **State Transitions** | | | |
+| | created → stopped lifecycle | ~253 ms | ~4 ops/sec |
+| | restart after stop | ~505 ms | ~2 ops/sec |
+| | 3 restart cycles | ~757 ms | ~1.3 ops/sec |
+| **Memory Management** | | | |
+| | rapid create/dispose (100x) | ~385 µs | ~2,600 ops/sec |
+| | rapid start/dispose (50x) | ~1.58 ms | ~633 ops/sec |
+| **Fetch Scenarios** | | | |
+| | lightweight (no-op) | ~51.6 ms | ~19 ops/sec |
+| | with CPU work | ~51.5 ms | ~19 ops/sec |
+| | with Promise.all | ~51.7 ms | ~19 ops/sec |
+
+**Notes:**
+- Execution times include the 50ms wait time in benchmarks
+- Concurrency shows similar performance (no contention)
+- Memory operations scale well (100 creates in ~385 µs)
+- State transitions include deliberate waits for cleanup
 
 ## Typical Performance (2.7GHz Intel i5)
 
