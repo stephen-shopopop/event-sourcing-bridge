@@ -1,8 +1,16 @@
 import { describe, it, type TestContext, mock } from 'node:test';
 import { setTimeout } from 'node:timers/promises';
+import { setTimeout as setTimeoutCb } from 'node:timers';
 import diagnostics_channel from 'node:diagnostics_channel';
 import { Worker } from '../src/library/worker.js';
 import type { WorkerOptions } from '../src/library/definitions.js';
+
+/**
+ * Helper for callback-based setTimeout
+ */
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeoutCb(resolve, ms));
+}
 
 describe('Worker', () => {
   describe('constructor validation', () => {
@@ -10,10 +18,8 @@ describe('Worker', () => {
       t.plan(2);
 
       // Act & Assert
-      // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
-      t.assert.throws(() => new Worker('not-an-object' as any), TypeError);
-      // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
-      t.assert.throws(() => new Worker(123 as any), TypeError);
+      t.assert.throws(() => new Worker('not-an-object' as unknown as WorkerOptions), TypeError);
+      t.assert.throws(() => new Worker(123 as unknown as WorkerOptions), TypeError);
     });
 
     it('should throw TypeError when interval is not a number', (t: TestContext) => {
@@ -21,8 +27,12 @@ describe('Worker', () => {
 
       // Act & Assert
       t.assert.throws(
-        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
-        () => new Worker({ name: 'test', interval: '1000' as any, fetch: async () => {} }),
+        () =>
+          new Worker({
+            name: 'test',
+            interval: '1000' as unknown as number,
+            fetch: async () => {}
+          }),
         TypeError
       );
     });
@@ -52,8 +62,12 @@ describe('Worker', () => {
 
       // Act & Assert
       t.assert.throws(
-        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
-        () => new Worker({ name: 'test', fetchProcessingTimeout: '1000' as any, fetch: async () => {} }),
+        () =>
+          new Worker({
+            name: 'test',
+            fetchProcessingTimeout: '1000' as unknown as number,
+            fetch: async () => {}
+          }),
         TypeError
       );
     });
@@ -82,11 +96,7 @@ describe('Worker', () => {
       t.plan(1);
 
       // Act & Assert
-      t.assert.throws(
-        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
-        () => new Worker({ name: 'test' } as any),
-        TypeError
-      );
+      t.assert.throws(() => new Worker({ name: 'test' } as unknown as WorkerOptions), TypeError);
     });
 
     it('should throw TypeError when fetch is null', (t: TestContext) => {
@@ -94,8 +104,7 @@ describe('Worker', () => {
 
       // Act & Assert
       t.assert.throws(
-        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
-        () => new Worker({ name: 'test', fetch: null as any }),
+        () => new Worker({ name: 'test', fetch: null as unknown as WorkerOptions['fetch'] }),
         TypeError
       );
     });
@@ -105,18 +114,19 @@ describe('Worker', () => {
 
       // Act & Assert
       t.assert.throws(
-        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
-        () => new Worker({ name: 'test', fetch: 'not-a-function' as any }),
+        () =>
+          new Worker({
+            name: 'test',
+            fetch: 'not-a-function' as unknown as WorkerOptions['fetch']
+          }),
         TypeError
       );
       t.assert.throws(
-        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
-        () => new Worker({ name: 'test', fetch: 123 as any }),
+        () => new Worker({ name: 'test', fetch: 123 as unknown as WorkerOptions['fetch'] }),
         TypeError
       );
       t.assert.throws(
-        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
-        () => new Worker({ name: 'test', fetch: {} as any }),
+        () => new Worker({ name: 'test', fetch: {} as unknown as WorkerOptions['fetch'] }),
         TypeError
       );
     });
@@ -126,13 +136,21 @@ describe('Worker', () => {
 
       // Act & Assert
       t.assert.throws(
-        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
-        () => new Worker({ name: 'test', errorCallback: 'not-a-function' as any, fetch: async () => {} }),
+        () =>
+          new Worker({
+            name: 'test',
+            errorCallback: 'not-a-function' as unknown as (err: unknown) => void,
+            fetch: async () => {}
+          }),
         TypeError
       );
       t.assert.throws(
-        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
-        () => new Worker({ name: 'test', errorCallback: 123 as any, fetch: async () => {} }),
+        () =>
+          new Worker({
+            name: 'test',
+            errorCallback: 123 as unknown as (err: unknown) => void,
+            fetch: async () => {}
+          }),
         TypeError
       );
     });
@@ -288,7 +306,7 @@ describe('Worker', () => {
       t.assert.strictEqual(worker.state, 'active');
 
       // Cleanup
-      worker.stop();
+      worker.dispose();
     });
 
     it('should call fetch function at intervals', async (t: TestContext) => {
@@ -304,13 +322,19 @@ describe('Worker', () => {
 
       // Act
       worker.start();
-      await setTimeout(2500);
+      // Optimized: wait just enough time for 2+ calls
+      await wait(50); // First call
+      await wait(1050); // Second call
+      await wait(50); // Small buffer
 
       // Assert
-      t.assert.ok(fetchFn.mock.callCount() >= 2);
+      t.assert.ok(
+        fetchFn.mock.callCount() >= 2,
+        `Expected >= 2 calls, got ${fetchFn.mock.callCount()}`
+      );
 
       // Cleanup
-      worker.stop();
+      worker.dispose();
     });
 
     it('should pass AbortSignal to fetch function', async (t: TestContext) => {
@@ -330,7 +354,7 @@ describe('Worker', () => {
       //  Act
       worker.start();
       await setTimeout(100);
-      worker.stop();
+      worker.dispose();
 
       // Assert
       t.assert.ok(receivedSignal instanceof AbortSignal);
@@ -355,7 +379,7 @@ describe('Worker', () => {
       // Act
       worker.start();
       await setTimeout(1100); // Wait for at least one fetch to complete
-      worker.stop();
+      worker.dispose();
 
       // Assert
       t.assert.ok(errorCallback.mock.callCount() >= 1);
@@ -382,11 +406,16 @@ describe('Worker', () => {
 
       // Act
       worker.start();
-      await setTimeout(2500);
-      worker.stop();
+      // Optimized: just wait for 2 calls
+      await wait(50); // First call (will error)
+      await wait(1050); // Second call (will succeed)
+      worker.dispose();
 
       // Assert
-      t.assert.ok(fetchFn.mock.callCount() >= 2);
+      t.assert.ok(
+        fetchFn.mock.callCount() >= 2,
+        `Expected >= 2 calls, got ${fetchFn.mock.callCount()}`
+      );
     });
 
     it('should abort fetch when timeout is reached', async (t: TestContext) => {
@@ -406,7 +435,7 @@ describe('Worker', () => {
       // Act
       worker.start();
       await setTimeout(200);
-      worker.stop();
+      worker.dispose();
 
       // Assert
       t.assert.ok(fetchFn.mock.callCount() >= 1);
@@ -435,7 +464,7 @@ describe('Worker', () => {
       // Act
       worker.start();
       await setTimeout(100); // Give time for fetch to start
-      worker.stop(); // This should abort the ongoing setTimeout
+      worker.dispose(); // This should abort the ongoing setTimeout
       await setTimeout(200); // Give time for the abortion to take effect
 
       // Assert
@@ -457,7 +486,7 @@ describe('Worker', () => {
       worker.start();
       await setTimeout(100);
       const callCountBeforeStop = fetchFn.mock.callCount();
-      worker.stop();
+      worker.dispose();
 
       await setTimeout(1100);
       const callCountAfterStop = fetchFn.mock.callCount();
@@ -481,9 +510,9 @@ describe('Worker', () => {
       // Act
       worker.start();
       await setTimeout(150);
-      worker.stop();
-      worker.stop();
-      worker.stop();
+      worker.dispose();
+      worker.dispose();
+      worker.dispose();
 
       t.assert.strictEqual(worker.state, 'stopping');
     });
@@ -510,7 +539,7 @@ describe('Worker', () => {
       // Act
       worker.start();
       await setTimeout(100);
-      worker.stop();
+      worker.dispose();
 
       // Assert
       t.assert.ok(channelMessage);
@@ -549,7 +578,7 @@ describe('Worker', () => {
       worker.start();
       // Cleanup
       await setTimeout(100);
-      worker.stop();
+      worker.dispose();
 
       // Assert
       t.assert.ok(channelMessage);
@@ -578,7 +607,7 @@ describe('Worker', () => {
       // Act
       worker.start();
       await setTimeout(100);
-      worker.stop();
+      worker.dispose();
 
       // Assert
       t.assert.ok(channelMessage.params);
@@ -608,7 +637,7 @@ describe('Worker', () => {
       // Act
       worker.start();
       await setTimeout(200);
-      worker.stop();
+      worker.dispose();
 
       // Assert
       t.assert.ok(typeof channelMessage.duration === 'number' && channelMessage.duration >= 0);
@@ -638,7 +667,7 @@ describe('Worker', () => {
       // Act
       worker.start();
       await setTimeout(100);
-      worker.stop();
+      worker.dispose();
 
       // Assert
       t.assert.ok(caughtError.message.includes('test-worker'));
@@ -664,7 +693,7 @@ describe('Worker', () => {
       // Act
       worker.start();
       await setTimeout(100);
-      worker.stop();
+      worker.dispose();
 
       // Assert
       t.assert.ok(errorCallback.mock.callCount() >= 1);
@@ -684,7 +713,7 @@ describe('Worker', () => {
       // Act
       worker.start();
       await setTimeout(1500);
-      worker.stop();
+      worker.dispose();
 
       // Assert
       t.assert.ok(fetchFn.mock.callCount() >= 1);
@@ -706,15 +735,20 @@ describe('Worker', () => {
 
       //  Act
       worker.start();
-      await setTimeout(2500);
-      worker.stop();
+      // Optimized: wait just for 2 calls
+      await wait(50); // First call
+      await wait(1050); // Second call
+      worker.dispose();
 
       if (callTimes.length >= 2) {
         const time1 = callTimes[1];
         const time0 = callTimes[0];
         if (time1 !== undefined && time0 !== undefined) {
           const interval = time1 - time0;
-          t.assert.ok(interval >= 900 && interval <= 1100);
+          t.assert.ok(
+            interval >= 900 && interval <= 1100,
+            `Interval should be ~1000ms, got ${interval}ms`
+          );
         } else {
           t.assert.ok(true);
         }
@@ -728,7 +762,7 @@ describe('Worker', () => {
 
       // Arrange
       const fetchFn = mock.fn(async () => {
-        await setTimeout(800);
+        await wait(800);
       });
       const worker = new Worker({
         name: 'test-worker',
@@ -738,11 +772,17 @@ describe('Worker', () => {
 
       //  Act
       worker.start();
-      await setTimeout(2500);
-      worker.stop();
+      // Optimized: fetch takes 800ms, interval is 1000ms, so wait ~1800ms for 2 calls
+      await wait(50); // Start first call
+      await wait(900); // First call completes + interval wait
+      await wait(900); // Second call completes
+      worker.dispose();
 
       // Assert
-      t.assert.ok(fetchFn.mock.callCount() >= 2);
+      t.assert.ok(
+        fetchFn.mock.callCount() >= 2,
+        `Expected >= 2 calls, got ${fetchFn.mock.callCount()}`
+      );
     });
 
     it('should follow correct state lifecycle', async (t: TestContext) => {
@@ -766,7 +806,7 @@ describe('Worker', () => {
       // Assert state is active
       t.assert.strictEqual(worker.state, 'active');
 
-      worker.stop();
+      worker.dispose();
 
       // Assert state is stopped
       t.assert.strictEqual(worker.state, 'stopping');
@@ -785,10 +825,11 @@ describe('Worker', () => {
 
       //  Act
       worker.start();
-      await setTimeout(100);
-      worker.stop();
+      await wait(50);
+      worker.dispose();
 
-      await setTimeout(2000);
+      // Optimized: wait less time to verify no restart
+      await wait(1200);
 
       //  Assert
       t.assert.strictEqual(worker.state, 'stopped');
@@ -802,7 +843,7 @@ describe('Worker', () => {
       // Arrange
       let processedItems = 0;
       const fetchFn = mock.fn(async () => {
-        await setTimeout(50);
+        await wait(50);
         processedItems++;
       });
       const worker = new Worker({
@@ -813,11 +854,13 @@ describe('Worker', () => {
 
       //  Act
       worker.start();
-      await setTimeout(2500);
-      worker.stop();
+      // Optimized: wait just for 2+ items
+      await wait(100); // First item
+      await wait(1050); // Second item
+      worker.dispose();
 
       // Assert
-      t.assert.ok(processedItems >= 2);
+      t.assert.ok(processedItems >= 2, `Expected >= 2 items, got ${processedItems}`);
     });
 
     it('should properly cleanup resources on stop', async (t: TestContext) => {
@@ -836,7 +879,7 @@ describe('Worker', () => {
       //  Act
       worker.start();
       await setTimeout(100);
-      worker.stop();
+      worker.dispose();
 
       // Assert
       t.assert.strictEqual(worker.state, 'stopping');
@@ -862,15 +905,22 @@ describe('Worker', () => {
       //  Act
       worker1.start();
       worker2.start();
-      await setTimeout(1500);
-      worker1.stop();
+      // Optimized: shorter delays
+      await wait(1100); // Both get first call
+      worker1.stop(); // Worker1 stops after ~1 call
 
-      await setTimeout(1000);
+      await wait(1050); // Worker2 gets second call
       worker2.stop();
 
       // Assert
-      t.assert.ok(fetchFn1.mock.callCount() >= 1);
-      t.assert.ok(fetchFn2.mock.callCount() >= 2);
+      t.assert.ok(
+        fetchFn1.mock.callCount() >= 1,
+        `Worker1 should have >= 1 call, got ${fetchFn1.mock.callCount()}`
+      );
+      t.assert.ok(
+        fetchFn2.mock.callCount() >= 2,
+        `Worker2 should have >= 2 calls, got ${fetchFn2.mock.callCount()}`
+      );
     });
   });
 
