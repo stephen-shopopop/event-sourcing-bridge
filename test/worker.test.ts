@@ -834,6 +834,157 @@ describe('Worker', () => {
       //  Assert
       t.assert.strictEqual(worker.state, 'stopped');
     });
+
+    it('should transition to stopped state after dispose', async (t: TestContext) => {
+      t.plan(3);
+
+      // Arrange
+      const fetchFn = mock.fn(async () => {});
+      const worker = new Worker({
+        name: 'test-worker',
+        interval: 1000,
+        fetch: fetchFn
+      });
+
+      //  Act
+      worker.start();
+      t.assert.strictEqual(worker.state, 'active', 'Should be active after start');
+      
+      worker.dispose();
+      t.assert.strictEqual(worker.state, 'stopping', 'Should be stopping after dispose');
+
+      // Wait for worker loop to complete
+      await wait(200);
+
+      //  Assert
+      t.assert.strictEqual(worker.state, 'stopped', 'Should be stopped after cleanup');
+    });
+
+    it('should allow restart after complete stop (new behavior)', async (t: TestContext) => {
+      t.plan(4);
+
+      // Arrange
+      const fetchFn = mock.fn(async () => {});
+      const worker = new Worker({
+        name: 'test-worker',
+        interval: 1000,
+        fetch: fetchFn
+      });
+
+      //  Act - First lifecycle
+      worker.start();
+      t.assert.strictEqual(worker.state, 'active', 'First start: should be active');
+      await wait(50);
+      
+      const firstCallCount = fetchFn.mock.callCount();
+      
+      worker.dispose();
+      await wait(200); // Wait for complete stop
+      
+      t.assert.strictEqual(worker.state, 'stopped', 'Should be stopped');
+
+      //  Act - Second lifecycle (restart)
+      worker.start();
+      t.assert.strictEqual(worker.state, 'active', 'Restart: should be active again');
+      
+      await wait(1100); // Wait for at least one call
+      worker.dispose();
+      await wait(200);
+
+      //  Assert
+      t.assert.ok(
+        fetchFn.mock.callCount() > firstCallCount,
+        `Should have more calls after restart: ${fetchFn.mock.callCount()} > ${firstCallCount}`
+      );
+    });
+
+    it('should not allow restart during stopping state', async (t: TestContext) => {
+      t.plan(2);
+
+      // Arrange
+      const fetchFn = mock.fn(async () => {});
+      const worker = new Worker({
+        name: 'test-worker',
+        interval: 1000,
+        fetch: fetchFn
+      });
+
+      //  Act
+      worker.start();
+      await wait(50);
+      worker.dispose();
+      
+      // Try to restart immediately (during stopping)
+      t.assert.strictEqual(worker.state, 'stopping', 'Should be in stopping state');
+      worker.start();
+      
+      await wait(50);
+
+      //  Assert - should still be stopping/stopped, not active
+      t.assert.notStrictEqual(worker.state, 'active', 'Should not be active during stopping');
+    });
+
+    it('should handle multiple restart cycles', async (t: TestContext) => {
+      t.plan(5);
+
+      // Arrange
+      const fetchFn = mock.fn(async () => {});
+      const worker = new Worker({
+        name: 'test-worker',
+        interval: 1000,
+        fetch: fetchFn
+      });
+
+      // Act - Run 3 complete cycles
+      for (let cycle = 0; cycle < 3; cycle++) {
+        worker.start();
+        t.assert.strictEqual(worker.state, 'active', `Cycle ${cycle + 1}: should be active`);
+        
+        await wait(50);
+        worker.dispose();
+        
+        // Wait for complete stop
+        await wait(200);
+      }
+
+      // Assert
+      t.assert.strictEqual(worker.state, 'stopped', 'Should be stopped after all cycles');
+      t.assert.ok(fetchFn.mock.callCount() >= 3, `Should have >= 3 calls, got ${fetchFn.mock.callCount()}`);
+    });
+
+    it('should handle concurrent start calls when stopped', async (t: TestContext) => {
+      t.plan(2);
+
+      // Arrange
+      const fetchFn = mock.fn(async () => {});
+      const worker = new Worker({
+        name: 'test-worker',
+        interval: 1000,
+        fetch: fetchFn
+      });
+
+      // Act - First cycle
+      worker.start();
+      await wait(50);
+      worker.dispose();
+      await wait(200); // Wait for stopped
+
+      // Call start multiple times concurrently
+      worker.start();
+      worker.start();
+      worker.start();
+      
+      await wait(50);
+
+      // Assert
+      t.assert.strictEqual(worker.state, 'active', 'Should be active (idempotent start)');
+      
+      // Cleanup
+      worker.dispose();
+      await wait(200);
+      
+      t.assert.strictEqual(worker.state, 'stopped', 'Should be stopped');
+    });
   });
 
   describe('integration', () => {

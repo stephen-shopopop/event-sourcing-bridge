@@ -277,15 +277,15 @@ import { channels } from './channels.js';
  *
  * ## Key Architectural Decisions
  *
- * 1. **State Machine**: Unidirectional flow (created → active → stopping → stopped)
- * 2. **No Restart**: Once stopped, a worker cannot be restarted (prevents state confusion)
- * 3. **Unified Cleanup**: dispose() is the single recommended way to stop and cleanup
- * 4. **Backward Compatibility**: stop() maintained as deprecated alias for dispose()
- * 5. **Adaptive Timing**: Interval accounts for fetch execution time
- * 6. **Dual Abort Controllers**: Separate controllers for timeout and task cancellation
- * 7. **Observable**: Publishes all executions to diagnostics channel for monitoring
- * 8. **Error Resilience**: Continues running after errors, publishes error events
- * 9. **Memory Safety**: Explicit controller cleanup at iteration end and in dispose()
+ * 1. **State Machine**: Unidirectional flow per cycle (created → active → stopping → stopped)
+ * 2. **Restart Capability**: Worker can be restarted after reaching 'stopped' state
+ * 3. **Unified Cleanup**: dispose() is the single method to stop and cleanup
+ * 4. **Adaptive Timing**: Interval accounts for fetch execution time
+ * 5. **Dual Abort Controllers**: Separate controllers for timeout and task cancellation
+ * 6. **Observable**: Publishes all executions to diagnostics channel for monitoring
+ * 7. **Error Resilience**: Continues running after errors, publishes error events
+ * 8. **Memory Safety**: Explicit controller cleanup at iteration end and in dispose()
+ * 9. **Reusable**: #stopping reset to false allows multiple start/dispose cycles
  *
  * @packageDocumentation
  */
