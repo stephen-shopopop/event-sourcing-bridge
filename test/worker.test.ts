@@ -5,6 +5,139 @@ import { Worker } from '../src/library/worker.js';
 import type { WorkerOptions } from '../src/library/definitions.js';
 
 describe('Worker', () => {
+  describe('constructor validation', () => {
+    it('should throw TypeError when options is a primitive (not an object)', (t: TestContext) => {
+      t.plan(2);
+
+      // Act & Assert
+      // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
+      t.assert.throws(() => new Worker('not-an-object' as any), TypeError);
+      // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
+      t.assert.throws(() => new Worker(123 as any), TypeError);
+    });
+
+    it('should throw TypeError when interval is not a number', (t: TestContext) => {
+      t.plan(1);
+
+      // Act & Assert
+      t.assert.throws(
+        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
+        () => new Worker({ name: 'test', interval: '1000' as any, fetch: async () => {} }),
+        TypeError
+      );
+    });
+
+    it('should throw TypeError when interval is a float', (t: TestContext) => {
+      t.plan(1);
+
+      // Act & Assert
+      t.assert.throws(
+        () => new Worker({ name: 'test', interval: 1000.5, fetch: async () => {} }),
+        TypeError
+      );
+    });
+
+    it('should throw TypeError when interval is negative', (t: TestContext) => {
+      t.plan(1);
+
+      // Act & Assert
+      t.assert.throws(
+        () => new Worker({ name: 'test', interval: -1000, fetch: async () => {} }),
+        TypeError
+      );
+    });
+
+    it('should throw TypeError when fetchProcessingTimeout is not a number', (t: TestContext) => {
+      t.plan(1);
+
+      // Act & Assert
+      t.assert.throws(
+        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
+        () => new Worker({ name: 'test', fetchProcessingTimeout: '1000' as any, fetch: async () => {} }),
+        TypeError
+      );
+    });
+
+    it('should throw TypeError when fetchProcessingTimeout is a float', (t: TestContext) => {
+      t.plan(1);
+
+      // Act & Assert
+      t.assert.throws(
+        () => new Worker({ name: 'test', fetchProcessingTimeout: 1000.5, fetch: async () => {} }),
+        TypeError
+      );
+    });
+
+    it('should throw TypeError when fetchProcessingTimeout is negative', (t: TestContext) => {
+      t.plan(1);
+
+      // Act & Assert
+      t.assert.throws(
+        () => new Worker({ name: 'test', fetchProcessingTimeout: -1000, fetch: async () => {} }),
+        TypeError
+      );
+    });
+
+    it('should throw TypeError when fetch is undefined', (t: TestContext) => {
+      t.plan(1);
+
+      // Act & Assert
+      t.assert.throws(
+        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
+        () => new Worker({ name: 'test' } as any),
+        TypeError
+      );
+    });
+
+    it('should throw TypeError when fetch is null', (t: TestContext) => {
+      t.plan(1);
+
+      // Act & Assert
+      t.assert.throws(
+        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
+        () => new Worker({ name: 'test', fetch: null as any }),
+        TypeError
+      );
+    });
+
+    it('should throw TypeError when fetch is not a function', (t: TestContext) => {
+      t.plan(3);
+
+      // Act & Assert
+      t.assert.throws(
+        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
+        () => new Worker({ name: 'test', fetch: 'not-a-function' as any }),
+        TypeError
+      );
+      t.assert.throws(
+        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
+        () => new Worker({ name: 'test', fetch: 123 as any }),
+        TypeError
+      );
+      t.assert.throws(
+        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
+        () => new Worker({ name: 'test', fetch: {} as any }),
+        TypeError
+      );
+    });
+
+    it('should throw TypeError when errorCallback is not a function', (t: TestContext) => {
+      t.plan(2);
+
+      // Act & Assert
+      t.assert.throws(
+        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
+        () => new Worker({ name: 'test', errorCallback: 'not-a-function' as any, fetch: async () => {} }),
+        TypeError
+      );
+      t.assert.throws(
+        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input types
+        () => new Worker({ name: 'test', errorCallback: 123 as any, fetch: async () => {} }),
+        TypeError
+      );
+    });
+  });
+
   describe('constructor', () => {
     it('should create a worker instance with default values', (t: TestContext) => {
       t.plan(5);
@@ -738,6 +871,117 @@ describe('Worker', () => {
       // Assert
       t.assert.ok(fetchFn1.mock.callCount() >= 1);
       t.assert.ok(fetchFn2.mock.callCount() >= 2);
+    });
+  });
+
+  describe('dispose()', () => {
+    it('should stop the worker when dispose is called', async (t: TestContext) => {
+      t.plan(2);
+
+      // Arrange
+      const fetchFn = mock.fn(async () => {});
+      const worker = new Worker({
+        name: 'test-worker',
+        interval: 1000,
+        fetch: fetchFn
+      });
+
+      // Act
+      worker.start();
+      await setTimeout(100);
+      t.assert.strictEqual(worker.state, 'active');
+
+      worker.dispose();
+
+      // Assert
+      t.assert.strictEqual(worker.state, 'stopping');
+    });
+
+    it('should cleanup AbortController when dispose is called', async (t: TestContext) => {
+      t.plan(1);
+
+      // Arrange
+      const fetchFn = mock.fn(async () => {});
+      const worker = new Worker({
+        name: 'test-worker',
+        interval: 1000,
+        fetch: fetchFn
+      });
+
+      // Act
+      worker.start();
+      await setTimeout(100);
+      worker.dispose();
+      await setTimeout(100);
+
+      // Assert - worker should not execute more fetches after dispose
+      const callCountAfterDispose = fetchFn.mock.callCount();
+      await setTimeout(1100);
+      t.assert.strictEqual(fetchFn.mock.callCount(), callCountAfterDispose);
+    });
+
+    it('should be safe to call dispose multiple times', async (t: TestContext) => {
+      t.plan(1);
+
+      // Arrange
+      const fetchFn = mock.fn(async () => {});
+      const worker = new Worker({
+        name: 'test-worker',
+        interval: 1000,
+        fetch: fetchFn
+      });
+
+      // Act
+      worker.start();
+      await setTimeout(100);
+      worker.dispose();
+      worker.dispose();
+      worker.dispose();
+
+      // Assert - no errors thrown
+      t.assert.ok(true);
+    });
+
+    it('should be safe to call dispose on non-started worker', (t: TestContext) => {
+      t.plan(1);
+
+      // Arrange
+      const worker = new Worker({
+        name: 'test-worker',
+        fetch: async () => {}
+      });
+
+      // Act
+      worker.dispose();
+
+      // Assert - no errors thrown
+      t.assert.ok(true);
+    });
+
+    it('should properly cleanup in try-finally pattern', async (t: TestContext) => {
+      t.plan(2);
+
+      // Arrange
+      const fetchFn = mock.fn(async () => {});
+      const worker = new Worker({
+        name: 'test-worker',
+        interval: 1000,
+        fetch: fetchFn
+      });
+
+      // Act
+      try {
+        worker.start();
+        await setTimeout(100);
+        t.assert.ok(fetchFn.mock.callCount() >= 1);
+      } finally {
+        worker.dispose();
+      }
+
+      // Assert - worker stopped after finally
+      const callCountAfterDispose = fetchFn.mock.callCount();
+      await setTimeout(1100);
+      t.assert.strictEqual(fetchFn.mock.callCount(), callCountAfterDispose);
     });
   });
 });

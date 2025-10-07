@@ -5,6 +5,296 @@ import { DEFAULT_INTERVAL } from './constants.js';
 import { channels } from './channels.js';
 
 /**
+ * # Worker Architecture Flow
+ *
+ * ## ASCII Architecture Diagram
+ *
+ * ```
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │                         WORKER LIFECYCLE FLOW                           │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ *   ┌─────────────┐
+ *   │ new Worker()│
+ *   │  (options)  │
+ *   └──────┬──────┘
+ *          │
+ *          │  • Validate options
+ *          │  • Generate UUID
+ *          │  • Set #interval (min 1000ms)
+ *          │  • Set #fetchProcessingTimeout
+ *          │  • Set #errorCallback
+ *          │
+ *          ▼
+ *   ┌─────────────┐
+ *   │   created   │◄────────────────────┐
+ *   │  (initial)  │                     │
+ *   └──────┬──────┘                     │
+ *          │                            │
+ *          │  start()                   │
+ *          │                            │
+ *          ▼                            │
+ *   ┌─────────────┐                     │
+ *   │   active    │                     │  Lifecycle ends
+ *   │  (running)  │                     │  Worker cannot
+ *   └──────┬──────┘                     │  be restarted
+ *          │                            │
+ *          │                            │
+ *   ┌──────▼────────────────────────┐   │
+ *   │    FETCH LOOP (while loop)    │   │
+ *   │                               │   │
+ *   │  ┌─────────────────────────┐  │   │
+ *   │  │1.Create AbortControllers│  │   │
+ *   │  │    - cancelTimeout      │  │   │
+ *   │  │    - #cancelTask        │  │   │
+ *   │  └────────┬────────────────┘  │   │
+ *   │           │                   │   │
+ *   │           ▼                   │   │
+ *   │  ┌─────────────────────────┐  │   │
+ *   │  │ 2. Promise.race([       │  │   │
+ *   │  │      timeout(),         │  │   │
+ *   │  │      fetch(signal)      │  │   │
+ *   │  │    ])                   │  │   │
+ *   │  └────────┬────────────────┘  │   │
+ *   │           │                   │   │
+ *   │      Success│   Error         │   │
+ *   │           ▼         ▼         │   │
+ *   │  ┌──────────┐ ┌──────────┐    │   │
+ *   │  │ Publish  │ │ Publish  │    │   │
+ *   │  │ success  │ │  error   │    │   │
+ *   │  │ to diag  │ │ to diag  │    │   │
+ *   │  │ channel  │ │ channel  │    │   │
+ *   │  └────┬─────┘ └────┬─────┘    │   │
+ *   │       │            │          │   │
+ *   │       │            ▼          │   │
+ *   │       │     ┌──────────────┐  │   │
+ *   │       │     │ errorCallback│  │   │
+ *   │       │     │  (err)       │  │   │
+ *   │       │     └──────┬───────┘  │   │
+ *   │       │            │          │   │
+ *   │       └────────────┘          │   │
+ *   │           │                   │   │
+ *   │           ▼                   │   │
+ *   │  ┌──────────────────────────┐ │   │
+ *   │  │ 3. Calculate elapsed time│ │   │
+ *   │  │    elapsed = now - start │ │   │
+ *   │  └────────┬─────────────────┘ │   │
+ *   │           │                   │   │
+ *   │           ▼                   │   │
+ *   │  ┌──────────────────────────┐ │   │
+ *   │  │ 4. Wait for remaining    │ │   │
+ *   │  │    interval time:        │ │   │
+ *   │  │    (interval - elapsed)  │ │   │
+ *   │  │    if > 100ms            │ │   │
+ *   │  └────────┬─────────────────┘ │   │
+ *   │           │                   │   │
+ *   │           │ If #stopping=false│   │
+ *   │           └────────┐          │   │
+ *   │                    │          │   │
+ *   └────────────────────┼──────────┘   │
+ *                        │              │
+ *            ┌───────────┘              │
+ *            │  Loop continues          │
+ *            │  until stop()            │
+ *            │                          │
+ *            │  stop() or dispose()     │
+ *            │                          │
+ *            ▼                          │
+ *     ┌─────────────┐                   │
+ *     │  stopping   │                   │
+ *     │ (#stopping= │                   │
+ *     │    true)    │                   │
+ *     └──────┬──────┘                   │
+ *            │                          │
+ *            │  • Set state = 'stopping'│
+ *            │  • Set #stopping = true  │
+ *            │  • Abort #cancelTask     │
+ *            │  • Wait for current fetch│
+ *            │    to complete           │
+ *            │  • Cleanup controllers   │
+ *            │                          │
+ *            ▼                          │
+ *     ┌─────────────┐                   │
+ *     │   stopped   │───────────────────┘
+ *     │   (final)   │
+ *     └──────┬──────┘
+ *            │
+ *            │  dispose() (optional)
+ *            │  for explicit cleanup
+ *            ▼
+ *     ┌─────────────┐
+ *     │   disposed  │
+ *     │ (resources  │
+ *     │  cleaned)   │
+ *     └─────────────┘
+ *
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │                    RESOURCE CLEANUP (Memory Management)                 │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ *   Two cleanup strategies available:
+ *
+ *   1. Implicit cleanup (stop()):
+ *      ┌──────────────┐
+ *      │ worker.stop()│
+ *      └──────┬───────┘
+ *             │
+ *             ▼
+ *      ┌──────────────────┐
+ *      │ Abort controller │
+ *      │ relies on GC     │
+ *      └──────────────────┘
+ *
+ *   2. Explicit cleanup (dispose()):
+ *      ┌─────────────────┐
+ *      │worker.dispose() │
+ *      └────────┬────────┘
+ *               │
+ *               ▼
+ *      ┌────────────────────────────┐
+ *      │ 1. Call stop() if active   │
+ *      └────────┬───────────────────┘
+ *               │
+ *               ▼
+ *      ┌────────────────────────────┐
+ *      │ 2. Abort #cancelTask       │
+ *      └────────┬───────────────────┘
+ *               │
+ *               ▼
+ *      ┌────────────────────────────┐
+ *      │ 3. Set #cancelTask = undef │
+ *      │    (explicit cleanup)      │
+ *      └────────────────────────────┘
+ *
+ *   Recommended: Use dispose() for explicit resource management
+ *   and preventing potential memory leaks.
+ *
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │                    ABORT SIGNAL FLOW (Cancellation)                     │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ *   ┌──────────────┐
+ *   │ User calls   │
+ *   │ stop()/      │
+ *   │ dispose()    │
+ *   └──────┬───────┘
+ *          │
+ *          ▼
+ *   ┌──────────────────┐
+ *   │ Set #stopping    │
+ *   │   = true         │
+ *   └──────┬───────────┘
+ *          │
+ *          ▼
+ *   ┌──────────────────┐
+ *   │ #cancelTask      │────┐
+ *   │   .abort()       │    │
+ *   └──────────────────┘    │
+ *                           │  Aborts
+ *                           ▼
+ *   ┌────────────────────────────────────┐
+ *   │  Ongoing operations aborted:       │
+ *   │  • fetch({ signal }) receives      │
+ *   │    aborted signal                  │
+ *   │  • setTimeout() in interval wait   │
+ *   │    throws AbortError               │
+ *   └────────────────────────────────────┘
+ *
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │                    TIMEOUT MECHANISM (Optional)                         │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ *   If #fetchProcessingTimeout is set:
+ *
+ *   ┌──────────────────┐      ┌──────────────────┐
+ *   │ timeout()        │      │ fetch(signal)    │
+ *   │  setTimeout(     │      │                  │
+ *   │   timeout,       │      │ User's task      │
+ *   │   cancelTimeout) │      │                  │
+ *   └────────┬─────────┘      └────────┬─────────┘
+ *            │                         │
+ *            │    Promise.race([       │
+ *            └────────┬────────────────┘
+ *                     │
+ *         ┌───────────┴───────────┐
+ *         │                       │
+ *    Timeout wins            Fetch wins
+ *         │                       │
+ *         ▼                       ▼
+ *   ┌──────────┐          ┌──────────────┐
+ *   │ Abort    │          │ Cancel       │
+ *   │#cancelTask│         │ timeout timer│
+ *   └──────────┘          │(cancelTimeout)│
+ *                         └──────────────┘
+ *
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │                   DIAGNOSTICS CHANNEL EVENTS                            │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ *   Every fetch execution publishes to 'handling-worker:execution':
+ *
+ *   Success Event:
+ *   {
+ *     operation: 'worker:fetch',
+ *     params: { id: UUID, name: string },
+ *     duration: number,  // in milliseconds
+ *     success: true
+ *   }
+ *
+ *   Error Event:
+ *   {
+ *     operation: 'worker:fetch',
+ *     params: { id: UUID, name: string },
+ *     duration: number,
+ *     success: false,
+ *     error: string  // Error message
+ *   }
+ *
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │                         TIMING DETAILS                                  │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ *   Interval Calculation:
+ *
+ *   ─────────────────────────────────────────────────────────────────
+ *   │         Fetch Execution          │  Wait Time  │  Next Fetch
+ *   ─────────────────────────────────────────────────────────────────
+ *   │◄─────── elapsed time ──────────►│
+ *   │                                  │
+ *   start                             end
+ *   (performance.now())               │
+ *                                     │
+ *   Wait time = interval - elapsed (if > 100ms)
+ *
+ *   Examples:
+ *   • interval: 1000ms, fetch takes: 200ms  → wait: 800ms
+ *   • interval: 1000ms, fetch takes: 900ms  → wait: 100ms
+ *   • interval: 1000ms, fetch takes: 1100ms → wait: 0ms (immediate)
+ *   • interval: 1000ms, fetch takes: 950ms  → wait: 50ms (< 100ms, skip wait)
+ *
+ * ```
+ *
+ * ## Key Architectural Decisions
+ *
+ * 1. **State Machine**: Unidirectional flow (created → active → stopping → stopped)
+ * 2. **No Restart**: Once stopped, a worker cannot be restarted (prevents state confusion)
+ * 3. **Graceful Shutdown**: stop() waits for current fetch to complete before stopping
+ * 4. **Explicit Cleanup**: dispose() method for deterministic resource cleanup
+ * 5. **Adaptive Timing**: Interval accounts for fetch execution time
+ * 6. **Dual Abort Controllers**: Separate controllers for timeout and task cancellation
+ * 7. **Observable**: Publishes all executions to diagnostics channel for monitoring
+ * 8. **Error Resilience**: Continues running after errors, publishes error events
+ * 9. **Memory Safety**: Explicit controller cleanup at iteration end and in dispose()
+ *
+ * @packageDocumentation
+ */
+
+/**
  * Possible states of a Worker instance during its lifecycle.
  *
  * @enum {string}
@@ -290,6 +580,7 @@ export class Worker {
 
         this.#errorCallback(err);
       } finally {
+        // Explicit cleanup of timeout controller
         cancelTimeout.abort();
       }
 
@@ -304,6 +595,12 @@ export class Worker {
         } catch {
           // AbortError is expected when stopping the worker
         }
+      }
+
+      // Explicit cleanup of task controller at end of iteration
+      if (this.#cancelTask) {
+        this.#cancelTask.abort();
+        this.#cancelTask = undefined;
       }
     }
 
@@ -336,6 +633,8 @@ export class Worker {
    * This method sets the stopping flag and aborts any ongoing fetch operation.
    * The worker will transition to 'stopping' state and eventually to 'stopped' state.
    *
+   * Note: For explicit resource cleanup, use dispose() instead.
+   *
    * @example
    * ```typescript
    * const worker = new Worker(options);
@@ -343,11 +642,53 @@ export class Worker {
    * // Later...
    * worker.stop();
    * ```
+   *
+   * @see {@link dispose} for explicit resource cleanup
    */
   stop(): void {
     this.#stopping = true;
     this.state = WORKER_STATES.stopping;
 
     this.#cancelTask?.abort();
+  }
+
+  /**
+   * Disposes the worker and explicitly cleans up all resources.
+   * This method stops the worker (if running) and cleans up the AbortController.
+   *
+   * After calling dispose(), the worker instance should not be used anymore.
+   * This is useful for explicit resource management and preventing memory leaks.
+   *
+   * @example
+   * ```typescript
+   * const worker = new Worker(options);
+   * worker.start();
+   * // Later...
+   * worker.dispose(); // Stops and cleans up
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // Using with try-finally for guaranteed cleanup
+   * const worker = new Worker(options);
+   * try {
+   *   worker.start();
+   *   // Do work...
+   * } finally {
+   *   worker.dispose();
+   * }
+   * ```
+   */
+  dispose(): void {
+    // Stop the worker if it's still running
+    if (this.state === WORKER_STATES.active) {
+      this.stop();
+    }
+
+    // Explicit cleanup of AbortController
+    if (this.#cancelTask) {
+      this.#cancelTask.abort();
+      this.#cancelTask = undefined;
+    }
   }
 }
