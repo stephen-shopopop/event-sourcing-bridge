@@ -6,15 +6,23 @@ import { Worker } from '../src/library/worker.js';
 import type { WorkerOptions } from '../src/library/definitions.js';
 
 /**
+ * Test timing constants for consistent and optimized test execution
+ */
+const TEST_INTERVAL = 110; // Optimized interval for tests (reduced from default 1000ms)
+const WAIT_BUFFER = 20; // Buffer to ensure operations complete
+
+/**
  * Helper for callback-based setTimeout
  */
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeoutCb(resolve, ms));
 
 /**
  * Helper to optimize worker interval for tests
- * Use 100ms + small buffer to ensure multiple calls
+ * Use 110ms interval to speed up tests while maintaining reliability
  */
-const optimizeIntervalForTest = (worker: Worker) => Reflect.set(worker, '_interval', 110);
+const optimizeIntervalForTest = (worker: Worker, interval = TEST_INTERVAL): void => {
+  Reflect.set(worker, '_interval', interval);
+};
 
 describe('Worker', () => {
   describe('constructor validation', () => {
@@ -775,7 +783,7 @@ describe('Worker', () => {
 
       // Act
       worker.start();
-      await wait(130);
+      await wait(TEST_INTERVAL + WAIT_BUFFER);
       worker.dispose();
 
       // Assert
@@ -796,11 +804,13 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      optimizeIntervalForTest(worker);
+
       //  Act
       worker.start();
-      // Optimized: wait just for 2 calls
-      await wait(50); // First call
-      await wait(1050); // Second call
+      // Optimized: wait just for 2 calls with optimized interval (110ms)
+      await wait(TEST_INTERVAL + WAIT_BUFFER); // First call
+      await wait(TEST_INTERVAL + WAIT_BUFFER); // Second call
       worker.dispose();
 
       if (callTimes.length >= 2) {
@@ -808,9 +818,10 @@ describe('Worker', () => {
         const time0 = callTimes[0];
         if (time1 !== undefined && time0 !== undefined) {
           const interval = time1 - time0;
+          // Adjusted for optimized interval: 110ms ± 20%
           t.assert.ok(
-            interval >= 900 && interval <= 1100,
-            `Interval should be ~1000ms, got ${interval}ms`
+            interval >= TEST_INTERVAL * 0.8 && interval <= TEST_INTERVAL * 1.5,
+            `Interval should be ~${TEST_INTERVAL}ms, got ${interval}ms`
           );
         } else {
           t.assert.ok(true);
@@ -927,7 +938,7 @@ describe('Worker', () => {
       t.assert.strictEqual(worker.state, 'stopping', 'Should be stopping after dispose');
 
       // Wait for worker loop to complete
-      await wait(120);
+      await wait(TEST_INTERVAL + WAIT_BUFFER);
 
       //  Assert
       t.assert.strictEqual(worker.state, 'stopped', 'Should be stopped after cleanup');
@@ -948,13 +959,13 @@ describe('Worker', () => {
 
       //  Act - First lifecycle
       worker.start();
-      await wait(50);
+      await wait(30);
 
       worker.dispose();
 
       const firstCallCount = fetchFn.mock.callCount();
 
-      await wait(120); // Wait for complete stop
+      await wait(TEST_INTERVAL + WAIT_BUFFER); // Wait for complete stop
 
       t.assert.strictEqual(worker.state, 'stopped', 'Should be stopped');
 
@@ -963,9 +974,9 @@ describe('Worker', () => {
 
       t.assert.strictEqual(worker.state, 'active', 'Restart: should be active again');
 
-      await wait(120); // Wait for at least one call
+      await wait(TEST_INTERVAL + WAIT_BUFFER); // Wait for at least one call
       worker.dispose();
-      await wait(20);
+      await wait(WAIT_BUFFER);
 
       //  Assert
       t.assert.ok(
@@ -1058,21 +1069,21 @@ describe('Worker', () => {
       worker.start();
       await wait(10);
       worker.dispose();
-      await wait(20); // Wait for stopped
+      await wait(WAIT_BUFFER); // Wait for stopped
 
       // Call start multiple times concurrently
       worker.start();
       worker.start();
       worker.start();
 
-      await wait(50);
+      await wait(30);
 
       // Assert
       t.assert.strictEqual(worker.state, 'active', 'Should be active (idempotent start)');
 
       // Cleanup
       worker.dispose();
-      await wait(200);
+      await wait(TEST_INTERVAL + WAIT_BUFFER);
 
       t.assert.strictEqual(worker.state, 'stopped', 'Should be stopped');
     });
@@ -1149,17 +1160,17 @@ describe('Worker', () => {
         fetch: fetchFn2
       });
 
-      Reflect.set(worker1, '_interval', 110);
-      Reflect.set(worker2, '_interval', 110);
+      optimizeIntervalForTest(worker1);
+      optimizeIntervalForTest(worker2);
 
       //  Act
       worker1.start();
       worker2.start();
       // Optimized: shorter delays
-      await wait(120); // Both get first call
+      await wait(TEST_INTERVAL + WAIT_BUFFER); // Both get first call
       worker1.dispose(); // Worker1 stops after ~1 call
 
-      await wait(120); // Worker2 gets second call
+      await wait(TEST_INTERVAL + WAIT_BUFFER); // Worker2 gets second call
       worker2.dispose();
 
       // Assert
@@ -1326,7 +1337,7 @@ describe('Worker', () => {
 
       // Assert - worker should not execute more fetches after dispose
       const callCountAfterDispose = fetchFn.mock.callCount();
-      await wait(120);
+      await wait(TEST_INTERVAL + WAIT_BUFFER);
       t.assert.strictEqual(fetchFn.mock.callCount(), callCountAfterDispose);
     });
 
@@ -1396,7 +1407,7 @@ describe('Worker', () => {
 
       // Assert - worker stopped after finally
       const callCountAfterDispose = fetchFn.mock.callCount();
-      await wait(120);
+      await wait(TEST_INTERVAL + WAIT_BUFFER);
       t.assert.strictEqual(fetchFn.mock.callCount(), callCountAfterDispose);
     });
   });

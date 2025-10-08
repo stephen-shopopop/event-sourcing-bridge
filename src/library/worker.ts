@@ -22,7 +22,7 @@ import { types } from 'node:util';
  *          │
  *          │  • Validate options
  *          │  • Generate UUID
- *          │  • Set #interval (min 1000ms)
+ *          │  • Set _interval (min 1000ms)
  *          │  • Set #fetchProcessingTimeout
  *          │  • Set #errorCallback
  *          │
