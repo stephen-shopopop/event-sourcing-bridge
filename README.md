@@ -187,7 +187,7 @@ const devQueue = createQueue("dev", { backend: "sqlite" }); // Local development
 
 ## 📋 Prerequisites
 
-- **Node.js** >= 20.17.0
+- **Node.js** >= 22.20.0
 - **npm** >= 10.0.0
 
 ## 📦 Installation

@@ -57,7 +57,7 @@ It is built with TypeScript and supports both ESM and CommonJS module formats.
 
 ### Core Dependencies
 
-- **Node.js** >= 20.17.0
+- **Node.js** >= 22.20.0 for modern JavaScript features
 - **TypeScript** 5.9+ for type-safe development
 - **tsup** for fast bundling and dual package output
 - **tsx** for running TypeScript files directly
