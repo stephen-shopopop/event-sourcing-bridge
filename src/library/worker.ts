@@ -3,6 +3,7 @@ import { randomUUID, type UUID } from 'node:crypto';
 import type { WorkerOptions } from './definitions.js';
 import { DEFAULT_INTERVAL } from './constants.js';
 import { channels } from './channels.js';
+import { types } from 'node:util';
 
 /**
  * # Worker Architecture Flow
@@ -579,10 +580,10 @@ export class Worker {
           params: { id: this.id, name: this.options.name },
           duration: performance.now() - start,
           success: false,
-          error: Error.isError(err) ? err.message : String(err)
+          error: types.isNativeError(err) ? err.message : String(err)
         });
 
-        if (Error.isError(err)) {
+        if (types.isNativeError(err)) {
           err.message = `${err.message} (WorkName: ${this.options.name}, Worker: ${this.id})`;
         }
 

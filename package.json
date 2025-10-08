@@ -89,6 +89,6 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=22.20.0"
+    "node": ">=20.17.0"
   }
 }
