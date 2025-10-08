@@ -8,9 +8,13 @@ import type { WorkerOptions } from '../src/library/definitions.js';
 /**
  * Helper for callback-based setTimeout
  */
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeoutCb(resolve, ms));
-}
+const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeoutCb(resolve, ms));
+
+/**
+ * Helper to optimize worker interval for tests
+ * Use 100ms + small buffer to ensure multiple calls
+ */
+const optimizeIntervalForTest = (worker: Worker) => Reflect.set(worker, '_interval', 110);
 
 describe('Worker', () => {
   describe('constructor validation', () => {
@@ -296,7 +300,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Assert
       t.assert.strictEqual(worker.state, 'created');
@@ -322,7 +326,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -354,7 +358,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       //  Act
       worker.start();
@@ -381,7 +385,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -411,7 +415,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -441,7 +445,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -472,7 +476,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -495,7 +499,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -522,7 +526,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -553,7 +557,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -593,7 +597,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -625,7 +629,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -657,7 +661,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -689,7 +693,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -716,7 +720,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -745,7 +749,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -767,7 +771,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -829,7 +833,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       //  Act
       worker.start();
@@ -857,7 +861,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Assert initial state
       t.assert.strictEqual(worker.state, 'created');
@@ -886,7 +890,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       //  Act
       worker.start();
@@ -911,7 +915,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       //  Act
       worker.start();
@@ -940,7 +944,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       //  Act - First lifecycle
       worker.start();
@@ -981,7 +985,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       //  Act
       worker.start();
@@ -1008,7 +1012,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       worker.start();
 
@@ -1048,7 +1052,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act - First cycle
       worker.start();
@@ -1090,7 +1094,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       //  Act
       worker.start();
@@ -1116,7 +1120,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       //  Act
       worker.start();
@@ -1190,7 +1194,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -1217,7 +1221,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act - manipulate the worker state to test edge cases
       worker.start();
@@ -1248,7 +1252,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -1288,7 +1292,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -1312,7 +1316,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -1337,7 +1341,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.start();
@@ -1359,7 +1363,7 @@ describe('Worker', () => {
         fetch: async () => {}
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       worker.dispose();
@@ -1379,7 +1383,7 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
-      Reflect.set(worker, '_interval', 110);
+      optimizeIntervalForTest(worker);
 
       // Act
       try {
