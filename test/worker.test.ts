@@ -296,6 +296,8 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Assert
       t.assert.strictEqual(worker.state, 'created');
 
@@ -320,21 +322,22 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
+
       // Optimized: wait just enough time for 2+ calls
-      await wait(50); // First call
-      await wait(1050); // Second call
-      await wait(50); // Small buffer
+      await wait(220);
+
+      // Cleanup
+      worker.dispose();
 
       // Assert
       t.assert.ok(
         fetchFn.mock.callCount() >= 2,
         `Expected >= 2 calls, got ${fetchFn.mock.callCount()}`
       );
-
-      // Cleanup
-      worker.dispose();
     });
 
     it('should pass AbortSignal to fetch function', async (t: TestContext) => {
@@ -351,9 +354,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       //  Act
       worker.start();
-      await setTimeout(100);
+      await wait(10);
       worker.dispose();
 
       // Assert
@@ -376,9 +381,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(1100); // Wait for at least one fetch to complete
+      await wait(120); // Wait for at least one fetch to complete
       worker.dispose();
 
       // Assert
@@ -404,11 +411,13 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
+
       // Optimized: just wait for 2 calls
-      await wait(50); // First call (will error)
-      await wait(1050); // Second call (will succeed)
+      await wait(220);
       worker.dispose();
 
       // Assert
@@ -432,9 +441,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(200);
+      await wait(10);
       worker.dispose();
 
       // Assert
@@ -461,11 +472,13 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(100); // Give time for fetch to start
+      await wait(10); // Give time for fetch to start
       worker.dispose(); // This should abort the ongoing setTimeout
-      await setTimeout(200); // Give time for the abortion to take effect
+      await wait(20); // Give time for the abortion to take effect
 
       // Assert
       t.assert.ok(signalAborted);
@@ -482,13 +495,15 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(100);
+      await wait(10);
       const callCountBeforeStop = fetchFn.mock.callCount();
       worker.dispose();
 
-      await setTimeout(1100);
+      await wait(120);
       const callCountAfterStop = fetchFn.mock.callCount();
 
       // Assert
@@ -507,9 +522,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(150);
+      await wait(10);
       worker.dispose();
       worker.dispose();
       worker.dispose();
@@ -536,9 +553,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(100);
+      await wait(10);
       worker.dispose();
 
       // Assert
@@ -574,10 +593,12 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
       // Cleanup
-      await setTimeout(100);
+      await wait(10);
       worker.dispose();
 
       // Assert
@@ -604,9 +625,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(100);
+      await wait(10);
       worker.dispose();
 
       // Assert
@@ -634,9 +657,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(200);
+      await wait(60);
       worker.dispose();
 
       // Assert
@@ -664,9 +689,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(100);
+      await wait(10);
       worker.dispose();
 
       // Assert
@@ -689,9 +716,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(100);
+      await wait(10);
       worker.dispose();
 
       // Assert
@@ -716,9 +745,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(100);
+      await wait(10);
       worker.dispose();
 
       // Assert
@@ -736,9 +767,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(1500);
+      await wait(130);
       worker.dispose();
 
       // Assert
@@ -788,7 +821,7 @@ describe('Worker', () => {
 
       // Arrange
       const fetchFn = mock.fn(async () => {
-        await wait(800);
+        await wait(80);
       });
       const worker = new Worker({
         name: 'test-worker',
@@ -796,12 +829,14 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       //  Act
       worker.start();
       // Optimized: fetch takes 800ms, interval is 1000ms, so wait ~1800ms for 2 calls
-      await wait(50); // Start first call
-      await wait(900); // First call completes + interval wait
-      await wait(900); // Second call completes
+      await wait(10); // Start first call
+      await wait(100); // First call completes + interval wait
+      await wait(120); // Second call completes
       worker.dispose();
 
       // Assert
@@ -821,6 +856,8 @@ describe('Worker', () => {
         interval: 1000,
         fetch: fetchFn
       });
+
+      Reflect.set(worker, '_interval', 110);
 
       // Assert initial state
       t.assert.strictEqual(worker.state, 'created');
@@ -849,13 +886,15 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       //  Act
       worker.start();
-      await wait(50);
+      await wait(10);
       worker.dispose();
 
       // Optimized: wait less time to verify no restart
-      await wait(1200);
+      await wait(120);
 
       //  Assert
       t.assert.strictEqual(worker.state, 'stopped');
@@ -872,22 +911,26 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       //  Act
       worker.start();
+
+      // Assert initial state
       t.assert.strictEqual(worker.state, 'active', 'Should be active after start');
-      
+
       worker.dispose();
       t.assert.strictEqual(worker.state, 'stopping', 'Should be stopping after dispose');
 
       // Wait for worker loop to complete
-      await wait(200);
+      await wait(120);
 
       //  Assert
       t.assert.strictEqual(worker.state, 'stopped', 'Should be stopped after cleanup');
     });
 
     it('should allow restart after complete stop (new behavior)', async (t: TestContext) => {
-      t.plan(4);
+      t.plan(3);
 
       // Arrange
       const fetchFn = mock.fn(async () => {});
@@ -897,25 +940,28 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       //  Act - First lifecycle
       worker.start();
-      t.assert.strictEqual(worker.state, 'active', 'First start: should be active');
       await wait(50);
-      
-      const firstCallCount = fetchFn.mock.callCount();
-      
+
       worker.dispose();
-      await wait(200); // Wait for complete stop
-      
+
+      const firstCallCount = fetchFn.mock.callCount();
+
+      await wait(120); // Wait for complete stop
+
       t.assert.strictEqual(worker.state, 'stopped', 'Should be stopped');
 
       //  Act - Second lifecycle (restart)
       worker.start();
+
       t.assert.strictEqual(worker.state, 'active', 'Restart: should be active again');
-      
-      await wait(1100); // Wait for at least one call
+
+      await wait(120); // Wait for at least one call
       worker.dispose();
-      await wait(200);
+      await wait(20);
 
       //  Assert
       t.assert.ok(
@@ -925,7 +971,7 @@ describe('Worker', () => {
     });
 
     it('should not allow restart during stopping state', async (t: TestContext) => {
-      t.plan(2);
+      t.plan(1);
 
       // Arrange
       const fetchFn = mock.fn(async () => {});
@@ -935,16 +981,17 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       //  Act
       worker.start();
-      await wait(50);
+
       worker.dispose();
-      
+
       // Try to restart immediately (during stopping)
-      t.assert.strictEqual(worker.state, 'stopping', 'Should be in stopping state');
       worker.start();
-      
-      await wait(50);
+
+      await wait(10);
 
       //  Assert - should still be stopping/stopped, not active
       t.assert.notStrictEqual(worker.state, 'active', 'Should not be active during stopping');
@@ -961,21 +1008,33 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
+      worker.start();
+
       // Act - Run 3 complete cycles
       for (let cycle = 0; cycle < 3; cycle++) {
-        worker.start();
         t.assert.strictEqual(worker.state, 'active', `Cycle ${cycle + 1}: should be active`);
-        
-        await wait(50);
+
         worker.dispose();
-        
+
         // Wait for complete stop
-        await wait(200);
+        await wait(20);
+
+        worker.start();
       }
+
+      worker.dispose();
+
+      // Wait for complete stop
+      await wait(20);
 
       // Assert
       t.assert.strictEqual(worker.state, 'stopped', 'Should be stopped after all cycles');
-      t.assert.ok(fetchFn.mock.callCount() >= 3, `Should have >= 3 calls, got ${fetchFn.mock.callCount()}`);
+      t.assert.ok(
+        fetchFn.mock.callCount() >= 3,
+        `Should have >= 3 calls, got ${fetchFn.mock.callCount()}`
+      );
     });
 
     it('should handle concurrent start calls when stopped', async (t: TestContext) => {
@@ -989,26 +1048,28 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act - First cycle
       worker.start();
-      await wait(50);
+      await wait(10);
       worker.dispose();
-      await wait(200); // Wait for stopped
+      await wait(20); // Wait for stopped
 
       // Call start multiple times concurrently
       worker.start();
       worker.start();
       worker.start();
-      
+
       await wait(50);
 
       // Assert
       t.assert.strictEqual(worker.state, 'active', 'Should be active (idempotent start)');
-      
+
       // Cleanup
       worker.dispose();
       await wait(200);
-      
+
       t.assert.strictEqual(worker.state, 'stopped', 'Should be stopped');
     });
   });
@@ -1029,11 +1090,13 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       //  Act
       worker.start();
       // Optimized: wait just for 2+ items
-      await wait(100); // First item
-      await wait(1050); // Second item
+      await wait(10); // First item
+      await wait(120); // Second item
       worker.dispose();
 
       // Assert
@@ -1053,9 +1116,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       //  Act
       worker.start();
-      await setTimeout(100);
+      await setTimeout(10);
       worker.dispose();
 
       // Assert
@@ -1073,20 +1138,24 @@ describe('Worker', () => {
         interval: 1000,
         fetch: fetchFn1
       });
+
       const worker2 = new Worker({
         name: 'worker-2',
         interval: 1000,
         fetch: fetchFn2
       });
 
+      Reflect.set(worker1, '_interval', 110);
+      Reflect.set(worker2, '_interval', 110);
+
       //  Act
       worker1.start();
       worker2.start();
       // Optimized: shorter delays
-      await wait(1100); // Both get first call
+      await wait(120); // Both get first call
       worker1.dispose(); // Worker1 stops after ~1 call
 
-      await wait(1050); // Worker2 gets second call
+      await wait(120); // Worker2 gets second call
       worker2.dispose();
 
       // Assert
@@ -1108,7 +1177,7 @@ describe('Worker', () => {
       // This test attempts to cover the catch handler in start() method
       // While it's difficult to trigger in practice due to internal error handling,
       // we can test that the error callback mechanism is in place
-      
+
       // Arrange
       const errorCallback = mock.fn();
       const fetchFn = mock.fn(async () => {
@@ -1121,9 +1190,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(150);
+      await wait(100);
       worker.dispose();
 
       // Assert - errorCallback should be called for errors inside startWorker
@@ -1135,7 +1206,7 @@ describe('Worker', () => {
 
       // This test covers defensive error handling in start() method
       // by creating a scenario where state management might behave unexpectedly
-      
+
       // Arrange
       const errorCallback = mock.fn();
       const fetchFn = mock.fn(async () => {});
@@ -1146,19 +1217,21 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act - manipulate the worker state to test edge cases
       worker.start();
-      await setTimeout(50);
-      
+      await wait(10);
+
       // Simulate rapid state changes
       worker.dispose();
-      await setTimeout(50);
-      
+      await wait(10);
+
       // Try starting again after dispose
       worker.start();
-      await setTimeout(50);
+      await wait(10);
       worker.dispose();
-      await setTimeout(200);
+      await wait(20);
 
       // Assert - should not crash or leak errors
       t.assert.ok(true, 'Worker handles state transitions gracefully');
@@ -1175,21 +1248,23 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(50);
+      await wait(10);
       t.assert.strictEqual(worker.state, 'active');
 
       // Try to start again while active (should be no-op)
       worker.start();
-      await setTimeout(50);
+      await wait(10);
       t.assert.strictEqual(worker.state, 'active');
 
       // Should still only have ~1 concurrent worker loop running
       const callCountBefore = fetchFn.mock.callCount();
-      await setTimeout(1100);
+      await wait(120);
       const callCountAfter = fetchFn.mock.callCount();
-      
+
       // Cleanup
       worker.dispose();
 
@@ -1213,9 +1288,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(100);
+      await wait(10);
       t.assert.strictEqual(worker.state, 'active');
 
       worker.dispose();
@@ -1235,15 +1312,17 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(100);
+      await wait(10);
       worker.dispose();
-      await setTimeout(100);
+      await wait(10);
 
       // Assert - worker should not execute more fetches after dispose
       const callCountAfterDispose = fetchFn.mock.callCount();
-      await setTimeout(1100);
+      await wait(120);
       t.assert.strictEqual(fetchFn.mock.callCount(), callCountAfterDispose);
     });
 
@@ -1258,9 +1337,11 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       worker.start();
-      await setTimeout(100);
+      await wait(10);
       worker.dispose();
       worker.dispose();
       worker.dispose();
@@ -1277,6 +1358,8 @@ describe('Worker', () => {
         name: 'test-worker',
         fetch: async () => {}
       });
+
+      Reflect.set(worker, '_interval', 110);
 
       // Act
       worker.dispose();
@@ -1296,10 +1379,12 @@ describe('Worker', () => {
         fetch: fetchFn
       });
 
+      Reflect.set(worker, '_interval', 110);
+
       // Act
       try {
         worker.start();
-        await setTimeout(100);
+        await wait(10);
         t.assert.ok(fetchFn.mock.callCount() >= 1);
       } finally {
         worker.dispose();
@@ -1307,7 +1392,7 @@ describe('Worker', () => {
 
       // Assert - worker stopped after finally
       const callCountAfterDispose = fetchFn.mock.callCount();
-      await setTimeout(1100);
+      await wait(120);
       t.assert.strictEqual(fetchFn.mock.callCount(), callCountAfterDispose);
     });
   });

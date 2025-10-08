@@ -4,7 +4,7 @@ import { Worker } from '../src/library/worker.js';
 
 /**
  * Benchmark suite for Worker class
- * 
+ *
  * This benchmark measures the performance of various Worker operations including:
  * - Worker instantiation
  * - Start/stop cycles
@@ -196,7 +196,7 @@ group('Worker Concurrency', () => {
       interval: 1000,
       fetch: createNoOpFetch()
     });
-    
+
     worker1.start();
     worker2.start();
     await setTimeout(50);
@@ -205,14 +205,16 @@ group('Worker Concurrency', () => {
   });
 
   bench('5 concurrent workers', async () => {
-    const workers = Array.from({ length: 5 }, (_, i) => 
-      new Worker({
-        name: `bench-worker-${i}`,
-        interval: 1000,
-        fetch: createNoOpFetch()
-      })
+    const workers = Array.from(
+      { length: 5 },
+      (_, i) =>
+        new Worker({
+          name: `bench-worker-${i}`,
+          interval: 1000,
+          fetch: createNoOpFetch()
+        })
     );
-    
+
     for (const worker of workers) {
       worker.start();
     }
@@ -223,14 +225,16 @@ group('Worker Concurrency', () => {
   });
 
   bench('10 concurrent workers', async () => {
-    const workers = Array.from({ length: 10 }, (_, i) => 
-      new Worker({
-        name: `bench-worker-${i}`,
-        interval: 1000,
-        fetch: createNoOpFetch()
-      })
+    const workers = Array.from(
+      { length: 10 },
+      (_, i) =>
+        new Worker({
+          name: `bench-worker-${i}`,
+          interval: 1000,
+          fetch: createNoOpFetch()
+        })
     );
-    
+
     for (const worker of workers) {
       worker.start();
     }
@@ -263,13 +267,13 @@ group('Worker State Transitions', () => {
       interval: 1000,
       fetch: createNoOpFetch()
     });
-    
+
     // First cycle
     worker.start();
     await setTimeout(50);
     worker.dispose();
     await setTimeout(200);
-    
+
     // Second cycle
     worker.start();
     await setTimeout(50);
@@ -283,7 +287,7 @@ group('Worker State Transitions', () => {
       interval: 1000,
       fetch: createNoOpFetch()
     });
-    
+
     for (let i = 0; i < 3; i++) {
       worker.start();
       await setTimeout(50);
@@ -353,11 +357,7 @@ group('Worker Fetch Performance Scenarios', () => {
       name: 'bench-worker',
       interval: 1000,
       fetch: async () => {
-        await Promise.all([
-          setTimeout(5),
-          setTimeout(5),
-          setTimeout(5)
-        ]);
+        await Promise.all([setTimeout(5), setTimeout(5), setTimeout(5)]);
       }
     });
     worker.start();

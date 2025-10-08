@@ -405,7 +405,7 @@ export class Worker {
    * @minimum 1000
    * @default 1000
    */
-  readonly #interval: number = DEFAULT_INTERVAL;
+  private readonly _interval: number = DEFAULT_INTERVAL;
 
   /**
    * Unique identifier (UUID v4) for this worker instance.
@@ -494,7 +494,7 @@ export class Worker {
           throw new TypeError('Worker options.interval must be a non-negative integer');
         }
 
-        this.#interval = Math.max(DEFAULT_INTERVAL, options.interval);
+        this._interval = Math.max(DEFAULT_INTERVAL, options.interval);
       }
 
       if (options.fetchProcessingTimeout) {
@@ -594,9 +594,9 @@ export class Worker {
 
       const elapsed = performance.now() - start;
 
-      if (!this.#stopping && this.#interval - elapsed > 100) {
+      if (!this.#stopping && this._interval - elapsed > 100) {
         try {
-          await setTimeout(this.#interval - elapsed, undefined, {
+          await setTimeout(this._interval - elapsed, undefined, {
             signal: this.#cancelTask.signal,
             ref: false
           });
