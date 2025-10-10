@@ -1,15 +1,18 @@
 import { Worker } from '../src/index.js';
 import stream from 'node:stream';
-import { setTimeout as sleep } from 'node:timers/promises';
+import { DatabaseSync } from 'node:sqlite';
+import diagnostics_channel from 'node:diagnostics_channel';
 
-async function* generate() {
-  let index = 0;
+diagnostics_channel.subscribe('handling-worker:execution', (message) => {
+  console.log('Worker execution event:', message);
+});
 
-  while (index < 4) {
-    await sleep(50);
-    index++;
-    yield { name: 'hello' };
-  }
+const db = new DatabaseSync(':memory:');
+
+db.exec('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)');
+
+for (let i = 0; i < 100; i++) {
+  db.exec("INSERT INTO users (name) VALUES ('john')");
 }
 
 const worker = new Worker({
@@ -22,25 +25,42 @@ const worker = new Worker({
       throw new Error('Fetch operation was aborted');
     }
 
-    const stream2 = stream.addAbortSignal(signal, stream.Readable.from(generate()));
+    const stream2 = stream.addAbortSignal(
+      signal,
+      stream.Readable.from(
+        db
+          .prepare(
+            "UPDATE users SET name = 'albert' WHERE id IN (SELECT id FROM users WHERE name = ? LIMIT 10) returning id, name"
+          )
+          .iterate('john')
+      )
+    );
 
-    stream2.on('data', (data) => {
-      console.debug('Stream:', data);
-    });
+    // stream2.on('data', (data) => {
+    //  console.debug('Stream:', data);
+    // });
 
-    stream2.on('error', (err) => {
-      console.error('Stream error:', err);
-    });
+    //stream2.on('error', (err) => {
+    //  console.error('Stream error:', err);
+    //});
 
-    // for await (const item of stream2) { console.log('readable:', item); }
+    for await (const item of stream2) {
+      console.log('readable:', item);
+
+      // Delete job
+      db.exec(`DELETE FROM users WHERE id = ${item.id}`);
+    }
+
+    // Log the current user count
+    console.log(db.prepare('SELECT COUNT(*) as count FROM users').get());
 
     console.log('Data fetched successfully.');
   }
 });
 
-worker.start();
-
 setTimeout(() => {
   console.log('Disposing worker...');
   worker.dispose();
-}, 1100);
+}, 5100);
+
+worker.start();
