@@ -1,7 +1,7 @@
 import { describe, it, type TestContext, beforeEach } from 'node:test';
 import { SQLiteConnector } from '../src/library/sqlite-connector.js';
 
-describe('SQLiteConnector', () => {
+describe('SQLiteConnector', { skip: Number.parseInt(process.version.slice(1), 10) < 22 }, () => {
   beforeEach(() => {
     // Reset singleton instance before each test
     // @ts-expect-error - Accessing private static field for testing
