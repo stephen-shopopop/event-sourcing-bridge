@@ -77,3 +77,25 @@ export type WorkerOptions = {
    */
   fetchProcessingTimeout?: number;
 };
+
+/**
+ * Represents a file system path that can be a string path, Buffer, or URL.
+ * This type is commonly used for file operations and path manipulations.
+ *
+ * @typedef {(string | Buffer | URL)} Path
+ */
+export type Path = string | Buffer | URL;
+
+/**
+ * Configuration options for SQLite cache store
+ *
+ * @interface SQLiteQueueOptions
+ * @property {string} [filename] - The name of the SQLite database file - default is ':memory:' for in-memory database
+ * @property {number} [maxEntrySize] - Maximum size of a single cache entry in bytes - default is 2GB
+ * @property {number} [timeout] - Timeout duration in milliseconds for database operations
+ */
+export type SQLiteQueueOptions = {
+  filename?: string | undefined;
+  maxEntrySize?: number | undefined;
+  timeout?: number | undefined;
+};

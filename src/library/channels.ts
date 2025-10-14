@@ -1,10 +1,9 @@
 import diagnostics_channel from 'node:diagnostics_channel';
 
 /**
- * An object containing pre-defined diagnostics channels for the web server.
+ * An object containing pre-defined diagnostics channels for this package.
  *
- * @property error   The diagnostics channel for error events, used for subscribing to and publishing error-related messages.
- * @property info    The diagnostics channel for informational events, used for subscribing to and publishing info messages.
+ * @property worker  The diagnostics channel for worker execution events, used for subscribing to and publishing worker-related messages.
  *
  * These channels are intended to be used with Node.js's `diagnostics_channel` module for structured event handling.
  */
