@@ -8,7 +8,9 @@ diagnostics_channel.subscribe('handling-worker:execution', (message) => {
 });
 
 const db = new DatabaseSync(':memory:');
+const SCHEMA_VERSION = '1';
 
+// Initialize the database schema
 db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA synchronous = NORMAL;
@@ -16,26 +18,28 @@ db.exec(`
     PRAGMA optimize;
     PRAGMA busy_timeout = 5000;
 
-    CREATE TABLE IF NOT EXISTS users (
-      id text primary key default ('m_' || lower(hex(randomblob(16)))),
-      created text not null default (strftime('%Y-%m-%dT%H:%M:%fZ')),
-      updated text not null default (strftime('%Y-%m-%dT%H:%M:%fZ')),
-      name text not null,
-      body text not null,
-      timeout text not null default (strftime('%Y-%m-%dT%H:%M:%fZ')),
-      received integer not null default 0,
-      priority integer not null default 0
-    ) strict;
+    CREATE TABLE IF NOT EXISTS queue_v${SCHEMA_VERSION} (
+      id TEXT PRIMARY KEY DEFAULT ('m_' || lower(hex(randomblob(16)))),
+      created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ')),
+      updated TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ')),
+      name TEXT NOT NULL CHECK(length(name) <= 255),
+      body BLOB NOT NULL,
+      timeout INTEGER NOT NULL DEFAULT (unixepoch('now','subsec') * 1000) CHECK(timeout >= 0),
+      received INTEGER NOT NULL DEFAULT 0,
+      priority INTEGER NOT NULL DEFAULT 0 CHECK(priority >= 0 AND priority <= 255)
+    ) STRICT;
 
-    create trigger users_updated_timestamp after update on users begin
-      update users set updated = strftime('%Y-%m-%dT%H:%M:%fZ') where id = old.id;
+    CREATE TRIGGER queue_updated_timestamp AFTER UPDATE ON queue_v${SCHEMA_VERSION} BEGIN
+      UPDATE queue_v${SCHEMA_VERSION} SET updated = strftime('%Y-%m-%dT%H:%M:%fZ') WHERE id = old.id;
     end;
 
-    create index users_queue_priority_created_idx on users (name, priority desc, created);
+    CREATE INDEX queue_priority_created_idx ON queue_v${SCHEMA_VERSION} (name, priority desc, created);
 `);
 
 for (let i = 0; i < 1000; i++) {
-  db.exec(`INSERT INTO users (name, body) VALUES ('john', 'hello')`);
+  db.prepare(`INSERT INTO queue_v${SCHEMA_VERSION} (name, body) VALUES ('john', ?)`).run(
+    Buffer.from(`hello world ${i}`)
+  );
 }
 
 // Helper function that simulates a fetch operation
@@ -52,16 +56,16 @@ const fetch = async ({ signal }: { signal: AbortSignal }) => {
     stream.Readable.from(
       db
         .prepare(`
-          UPDATE users
+          UPDATE queue_v${SCHEMA_VERSION}
             SET
-                timeout = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+1 minute'),
-                received = received + 1
+              timeout = (unixepoch('now','subsec') * 1000) + 1000 * POWER(2, received),
+              received = received + 1
             WHERE id IN (
-              SELECT id FROM users
-              WHERE name = ? and received < 1 and strftime('%Y-%m-%dT%H:%M:%fZ') >= timeout
-              order by priority desc, created
+              SELECT id FROM queue_v${SCHEMA_VERSION}
+              WHERE name = ? AND received < 1 AND (unixepoch('now','subsec') * 1000) >= timeout
+              ORDER BY priority DESC, created
               LIMIT 50
-            ) returning id, name, body, created, updated, timeout, received, priority
+            ) RETURNING id, name, body, created, updated, timeout, received, priority
         `)
         .iterate('john')
     )
@@ -76,14 +80,21 @@ const fetch = async ({ signal }: { signal: AbortSignal }) => {
   //});
 
   for await (const item of stream2) {
-    console.log('readable:', item);
+    console.log('readable:', {
+      ...item,
+      body: item.body.toString(),
+      timeout: new Date(item.timeout)
+    });
 
     // Delete job
-    db.prepare('DELETE FROM users WHERE name= ? and id = ?').run(item.name, item.id);
+    db.prepare(`DELETE FROM queue_v${SCHEMA_VERSION} WHERE name= ? and id = ?`).run(
+      item.name,
+      item.id
+    );
   }
 
   // Log the current user count
-  console.log(db.prepare('SELECT COUNT(*) as count FROM users').get());
+  console.log(db.prepare(`SELECT COUNT(*) AS count FROM queue_v${SCHEMA_VERSION}`).get());
 
   console.log('Data fetched successfully.');
 };
